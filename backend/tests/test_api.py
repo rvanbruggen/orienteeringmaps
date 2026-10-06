@@ -150,3 +150,29 @@ def test_exports_and_events(client):
 
     events = client.get("/api/events").json()
     assert events[0]["name"] == "Race" and events[0]["map_name"] == "Kmz Test" and events[0]["course_names"] == ["A"]
+
+
+def test_bulk_update_maps(client):
+    club = client.post("/api/clubs", json={"name": "TROL"}).json()
+    a = client.post("/api/maps", json={"name": "A", "tags": ["HITTA", "old"], "map_type": "park"}).json()
+    b = client.post("/api/maps", json={"name": "B", "tags": ["old"], "needs_review": True}).json()
+    c = client.post("/api/maps", json={"name": "C", "map_type": "forest"}).json()
+    r = client.post("/api/maps/bulk", json={
+        "ids": [a["id"], b["id"]], "club_id": club["id"], "publish_level": "overlay", "needs_review": False,
+        "add_tags": ["Gent", "HITTA"], "remove_tags": ["old"]})
+    assert r.status_code == 200 and r.json() == {"updated": 2}
+    maps = {x["name"]: x for x in client.get("/api/maps").json()}
+    assert maps["A"]["tags"] == ["HITTA", "Gent"] and maps["B"]["tags"] == ["Gent", "HITTA"]
+    assert maps["A"]["club_name"] == maps["B"]["club_name"] == "TROL" and maps["C"]["club_name"] is None
+    assert maps["A"]["publish_level"] == "overlay" and maps["C"]["publish_level"] == "private"
+    assert not maps["B"]["needs_review"]
+    assert maps["A"]["map_type"] == "park"  # not sent, so unchanged
+
+    # Explicit null clears; missing maps and bad values are rejected.
+    client.post("/api/maps/bulk", json={"ids": [a["id"]], "club_id": None, "map_type": None})
+    maps = {x["name"]: x for x in client.get("/api/maps").json()}
+    assert maps["A"]["club_name"] is None and maps["A"]["map_type"] is None
+    assert client.post("/api/maps/bulk", json={"ids": [a["id"], 9999], "map_type": "park"}).status_code == 404
+    assert client.post("/api/maps/bulk", json={"ids": [a["id"]], "publish_level": None}).status_code == 422
+    assert client.post("/api/maps/bulk", json={"ids": [], "map_type": "park"}).status_code == 422
+    assert client.post("/api/maps/bulk", json={"ids": [c["id"]], "club_id": 9999}).status_code == 404

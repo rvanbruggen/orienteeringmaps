@@ -2,7 +2,8 @@
   import { onMount } from 'svelte'
   import { api } from '../lib/api.js'
   import { go } from '../lib/router.svelte.js'
-  import { meta, notify } from '../lib/stores.svelte.js'
+  import { SvelteSet } from 'svelte/reactivity'
+  import { clubs as clubStore, meta, notify, refreshClubs } from '../lib/stores.svelte.js'
   import { fmtScale, fmtContour, fmtDate, label, yearsAgo, PUBLISH_LEVELS } from '../lib/format.js'
   import ExplorerMap from '../components/ExplorerMap.svelte'
 
@@ -21,10 +22,85 @@
     try { localStorage.setItem(PREFS_KEY, snapshot) } catch { /* private mode */ }
   })
 
-  onMount(async () => {
+  async function reload() {
     try { maps = await api.get('/api/maps') } catch (e) { notify(e.message, 'error') }
     loading = false
-  })
+  }
+  onMount(reload)
+
+  // ------------------------------------------------- selection & bulk edit --
+  const selected = new SvelteSet()
+  let lastClicked = null
+  let bulkBusy = $state(false)
+  let newTag = $state('')
+
+  const allShown = $derived(filtered.length > 0 && filtered.every((m) => selected.has(m.id)))
+  const someShown = $derived(filtered.some((m) => selected.has(m.id)))
+  const hiddenSelected = $derived([...selected].filter((id) => !filtered.some((m) => m.id === id)).length)
+  const selectedMaps = $derived(maps.filter((m) => selected.has(m.id)))
+  const selectedTags = $derived([...new Set(selectedMaps.flatMap((m) => m.tags))].sort())
+
+  function toggleAll() {
+    if (allShown) filtered.forEach((m) => selected.delete(m.id))
+    else filtered.forEach((m) => selected.add(m.id))
+  }
+  function toggle(e, m, index) {
+    e.stopPropagation()
+    const on = !selected.has(m.id)
+    // Shift-click selects (or clears) the whole range since the last click.
+    const from = e.shiftKey && lastClicked !== null ? Math.min(lastClicked, index) : index
+    const to = e.shiftKey && lastClicked !== null ? Math.max(lastClicked, index) : index
+    for (const x of filtered.slice(from, to + 1)) on ? selected.add(x.id) : selected.delete(x.id)
+    lastClicked = index
+  }
+
+  async function bulk(change, message) {
+    const ids = [...selected]
+    if (!ids.length) return
+    bulkBusy = true
+    try {
+      const res = await api.post('/api/maps/bulk', { ids, ...change })
+      await reload()
+      notify(`${message} on ${res.updated} map${res.updated === 1 ? '' : 's'}`)
+    } catch (e) { notify(e.message, 'error') }
+    bulkBusy = false
+  }
+  async function bulkClub(e) {
+    const v = e.target.value
+    e.target.value = ''
+    if (v === '__new') {
+      const name = prompt('Name of the new club')?.trim()
+      if (!name) return
+      try {
+        const club = await api.post('/api/clubs', { name })
+        await refreshClubs()
+        await bulk({ club_id: club.id }, `Club set to ${club.name}`)
+      } catch (err) { notify(err.message, 'error') }
+    } else if (v === '__none') bulk({ club_id: null }, 'Club cleared')
+    else if (v) bulk({ club_id: +v }, `Club set to ${clubStore.list.find((c) => c.id === +v)?.name}`)
+  }
+  function bulkType(e) {
+    const v = e.target.value
+    e.target.value = ''
+    if (v === '__none') bulk({ map_type: null }, 'Type cleared')
+    else if (v) bulk({ map_type: v }, `Type set to ${label(v)}`)
+  }
+  function bulkPublish(e) {
+    const v = e.target.value
+    e.target.value = ''
+    if (v) bulk({ publish_level: v }, `Public site set to ${PUBLISH_LEVELS.find((l) => l.value === v).label}`)
+  }
+  function bulkRemoveTag(e) {
+    const v = e.target.value
+    e.target.value = ''
+    if (v) bulk({ remove_tags: [v] }, `Tag “${v}” removed`)
+  }
+  function bulkAddTag() {
+    const t = newTag.trim()
+    if (!t) return
+    newTag = ''
+    bulk({ add_tags: [t] }, `Tag “${t}” added`)
+  }
 
   const columns = [
     { key: 'name', label: 'Name' },
@@ -136,10 +212,48 @@
   {:else if !filtered.length}
     <p class="empty">No maps match these filters.</p>
   {:else if prefs.view === 'table'}
+    {#if selected.size}
+      <div class="bulk card" role="toolbar" aria-label="Change selected maps">
+        <strong>{selected.size} selected</strong>
+        {#if hiddenSelected}<span class="muted small">({hiddenSelected} hidden by filters)</span>{/if}
+        <select onchange={bulkClub} disabled={bulkBusy} aria-label="Set club">
+          <option value="">Club…</option>
+          {#each clubStore.list as c (c.id)}<option value={c.id}>{c.name}</option>{/each}
+          <option value="__none">— No club</option>
+          <option value="__new">+ New club…</option>
+        </select>
+        <select onchange={bulkType} disabled={bulkBusy} aria-label="Set map type">
+          <option value="">Type…</option>
+          {#each meta.enums.map_types as t}<option value={t}>{label(t)}</option>{/each}
+          <option value="__none">— No type</option>
+        </select>
+        <select onchange={bulkPublish} disabled={bulkBusy} aria-label="Set public site level">
+          <option value="">Public site…</option>
+          {#each PUBLISH_LEVELS as l}<option value={l.value} title={l.hint}>{l.label}</option>{/each}
+        </select>
+        <form class="addtag" onsubmit={(e) => { e.preventDefault(); bulkAddTag() }}>
+          <input list="bulk-tags" bind:value={newTag} placeholder="Add tag…" aria-label="Tag to add" disabled={bulkBusy} />
+          <datalist id="bulk-tags">{#each tags as t}<option value={t}></option>{/each}</datalist>
+          <button type="submit" disabled={bulkBusy || !newTag.trim()}>Add</button>
+        </form>
+        {#if selectedTags.length}
+          <select onchange={bulkRemoveTag} disabled={bulkBusy} aria-label="Remove tag">
+            <option value="">Remove tag…</option>
+            {#each selectedTags as t}<option value={t}>{t}</option>{/each}
+          </select>
+        {/if}
+        {#if selectedMaps.some((m) => m.needs_review)}
+          <button onclick={() => bulk({ needs_review: false }, 'Marked reviewed')} disabled={bulkBusy}>Mark reviewed</button>
+        {/if}
+        <span class="spacer"></span>
+        <button class="ghost" onclick={() => selected.clear()}>Clear selection</button>
+      </div>
+    {/if}
     <div class="table-wrap card">
       <table>
         <thead>
           <tr>
+            <th class="checkcol"><input type="checkbox" checked={allShown} indeterminate={someShown && !allShown} onchange={toggleAll} aria-label="Select all shown maps" /></th>
             <th class="thumbcol"></th>
             {#each columns as c}
               <th class:num={c.num} aria-sort={prefs.sort === c.key ? (prefs.dir > 0 ? 'ascending' : 'descending') : 'none'}>
@@ -152,8 +266,11 @@
           </tr>
         </thead>
         <tbody>
-          {#each filtered as m (m.id)}
-            <tr onclick={() => go(`/map/${m.id}`)}>
+          {#each filtered as m, i (m.id)}
+            <tr onclick={() => go(`/map/${m.id}`)} class:sel={selected.has(m.id)}>
+              <td class="checkcol" onclick={(e) => toggle(e, m, i)}>
+                <input type="checkbox" checked={selected.has(m.id)} aria-label="Select {m.name}" onclick={(e) => toggle(e, m, i)} />
+              </td>
               <td class="thumbcol">
                 {#if m.thumb_url}<img src={m.thumb_url} alt="" loading="lazy" />{:else}<div class="nothumb"></div>{/if}
               </td>
@@ -224,6 +341,14 @@
   tbody tr:hover { background: var(--surface-2); }
   tbody tr:last-child td { border-bottom: 0; }
   .thumbcol { width: 56px; padding-right: 0; }
+  .checkcol { width: 34px; padding: 0 0 0 .6rem; cursor: default; }
+  th.checkcol { padding: 0 0 0 .6rem; }
+  .checkcol input { cursor: pointer; }
+  tbody tr.sel { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  .bulk { position: sticky; top: 3.4rem; z-index: 10; display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; padding: .55rem .75rem; margin-bottom: .75rem; border-color: var(--accent); }
+  .bulk select { width: auto; }
+  .addtag { display: flex; gap: .3rem; }
+  .addtag input { width: 9rem; }
   .thumbcol img, .nothumb { width: 48px; height: 48px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border); background: var(--surface-2); }
   .name { font-weight: 600; color: var(--text); }
   .chips { display: flex; gap: .25rem; flex-wrap: wrap; margin-top: .2rem; }

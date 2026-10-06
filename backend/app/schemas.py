@@ -240,6 +240,18 @@ class MapIn(_In):
     public_note: str | None = None
 
 
+class MapBulkUpdate(_In):
+    """Change several maps at once. Only the fields that are sent are changed;
+    send club_id or map_type as null to clear them."""
+    ids: list[int] = Field(min_length=1)
+    club_id: int | None = None
+    map_type: str | None = None
+    publish_level: str | None = Field(None, pattern="^(private|outline|overlay|full)$")
+    needs_review: bool | None = None
+    add_tags: list[str] = []
+    remove_tags: list[str] = []
+
+
 class InitialCourse(_In):
     name: str
     file_id: int | None = None

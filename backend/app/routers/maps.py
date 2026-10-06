@@ -79,6 +79,32 @@ def create_map(data: s.MapCreate, db: Session = Depends(get_session)):
     return services.map_detail(services.load_map(db, mp.id))
 
 
+@router.post("/maps/bulk")
+def bulk_update_maps(data: s.MapBulkUpdate, db: Session = Depends(get_session)):
+    """Set club, type, publish level or review flag, and add or remove tags, on several maps."""
+    fields = data.model_fields_set - {"ids", "add_tags", "remove_tags"}
+    if "publish_level" in fields and data.publish_level is None:
+        raise HTTPException(422, "publish_level cannot be empty")
+    if "needs_review" in fields and data.needs_review is None:
+        raise HTTPException(422, "needs_review cannot be empty")
+    _check_club(db, data.club_id)
+    maps = db.scalars(select(m.Map).where(m.Map.id.in_(data.ids))).all()
+    if len(maps) != len(set(data.ids)):
+        missing = set(data.ids) - {mp.id for mp in maps}
+        raise HTTPException(404, f"Maps not found: {sorted(missing)}")
+    add = [t.strip() for t in data.add_tags if t.strip()]
+    remove = {t.strip() for t in data.remove_tags}
+    for mp in maps:
+        for key in fields:
+            value = getattr(data, key)
+            setattr(mp, key, int(value) if key == "needs_review" else value)
+        if add or remove:
+            tags = [t for t in (mp.tags or []) if t not in remove]
+            mp.tags = tags + [t for t in add if t not in tags]
+    db.commit()
+    return {"updated": len(maps)}
+
+
 @router.patch("/maps/{map_id}", response_model=s.MapDetail)
 def update_map(map_id: int, data: s.MapIn, db: Session = Depends(get_session)):
     mp = services.get_or_404(db, m.Map, map_id)
