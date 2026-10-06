@@ -1,0 +1,13 @@
+.DS_Store
+.env
+# Live state and source maps (club copyright) stay out of git.
+data/
+import/
+map-sources/
+# Python
+backend/.venv/
+__pycache__/
+.pytest_cache/
+# Frontend
+frontend/node_modules/
+frontend/dist/

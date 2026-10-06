@@ -1,0 +1,11 @@
+.git
+.claude
+.DS_Store
+data
+import
+map-sources
+backend/.venv
+backend/.pytest_cache
+**/__pycache__
+frontend/node_modules
+frontend/dist

@@ -1,0 +1,20 @@
+services:
+  orienteeringmaps:
+    build: .
+    image: orienteeringmaps:latest
+    container_name: orienteeringmaps
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      # All state lives on the host, NOT inside the container:
+      #   data/orienteeringmaps.db   SQLite database   -> back up (sqlite3 .backup)
+      #   data/originals/            uploaded files    -> back up
+      #   data/derived/              rendered pages    -> skip; rebuild with `python -m app.cli rerender`
+      - ./data:/data
+      # Drop folders of PDFs/images here for bulk import (read-only in the container).
+      - ./import:/import:ro
+    ports:
+      # LAN-only web interface. Set OMAPS_PASSWORD in .env to require a login.
+      - "${HOST_PORT:-8420}:8420"

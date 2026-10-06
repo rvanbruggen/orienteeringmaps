@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "omaps",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": ["-c", "cd backend && OMAPS_DATA_DIR=${OMAPS_DATA_DIR:-../data} .venv/bin/uvicorn app.main:app --port 8420"],
+      "port": 8420
+    }
+  ]
+}
