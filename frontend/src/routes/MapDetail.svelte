@@ -20,9 +20,35 @@
   let lb = $state({ open: false, pages: [], index: 0, title: '' })
   let busy = $state(false)
 
+  let allMaps = $state([])
   async function load() {
     try { map = await api.get(`/api/maps/${id}`) } catch (e) { error = e.message }
+    api.get('/api/maps').then((list) => (allMaps = list)).catch(() => {})
   }
+
+  // ----------------------------------------------------------- nearby maps --
+  const NEARBY_KM = 3
+  const centre = (m) => m.footprint
+    ? [m.footprint.reduce((a, p) => a + p[0], 0) / m.footprint.length, m.footprint.reduce((a, p) => a + p[1], 0) / m.footprint.length]
+    : m.lat != null ? [m.lat, m.lon] : null
+  const bbox = (fp) => fp && [Math.min(...fp.map((p) => p[0])), Math.min(...fp.map((p) => p[1])), Math.max(...fp.map((p) => p[0])), Math.max(...fp.map((p) => p[1]))]
+  const km = ([a, b], [c, d]) => {
+    const r = Math.PI / 180, x = (d - b) * r * Math.cos(((a + c) / 2) * r), y = (c - a) * r
+    return Math.sqrt(x * x + y * y) * 6371
+  }
+  const nearby = $derived.by(() => {
+    const me = allMaps.find((m) => m.id === id)
+    const c = me && centre(me)
+    if (!c) return []
+    const mb = bbox(me.footprint)
+    return allMaps.filter((m) => m.id !== id).map((m) => {
+      const oc = centre(m)
+      if (!oc) return null
+      const ob = bbox(m.footprint)
+      const overlaps = !!(mb && ob && mb[0] <= ob[2] && ob[0] <= mb[2] && mb[1] <= ob[3] && ob[1] <= mb[3])
+      return { ...m, km: km(c, oc), overlaps }
+    }).filter((m) => m && (m.overlaps || m.km <= NEARBY_KM)).sort((a, b) => a.km - b.km)
+  })
   onMount(load)
 
   const allFiles = $derived(map ? map.versions.flatMap((v) => v.files) : [])
@@ -172,6 +198,17 @@
           </dl>
           {#if map.tags.length}<div class="row">{#each map.tags as t}<span class="chip accent">{t}</span>{/each}</div>{/if}
           {#if map.notes}<p class="notes">{map.notes}</p>{/if}
+          {#if nearby.length}
+            <div class="nearby">
+              <span class="muted small">Nearby maps</span>
+              <div class="row">
+                {#each nearby as n (n.id)}
+                  <a class="chip {n.overlaps ? 'course' : ''}" href="#/map/{n.id}" title={n.overlaps ? 'Overlaps this map' : ''}>
+                    {n.name} · {n.km < 1 ? `${Math.round(n.km * 1000)} m` : `${n.km.toFixed(1)} km`}{n.overlaps ? ' · overlaps' : ''}</a>
+                {/each}
+              </div>
+            </div>
+          {/if}
 
           {#if timeline}
             <div class="timeline" aria-label="Timeline">
@@ -191,6 +228,9 @@
       <div class="row sect-head">
         <h2>On the map</h2>
         {#if overlays.length}<span class="muted">{overlays.length} placed page{overlays.length > 1 ? 's' : ''}</span>{/if}
+        <span class="spacer"></span>
+        {#if overlays.length}<a class="btn small" href="/api/maps/{id}/kmz" download title="Open in Google Earth (web, desktop or app)">Google Earth (.kmz)</a>{/if}
+        {#if map.lat != null}<a class="btn small ghost" href="https://www.google.com/maps/search/?api=1&query={map.lat},{map.lon}" target="_blank" rel="noopener">Google Maps ↗</a>{/if}
       </div>
       {#if overlays.length}
         {#key overlays.map((o) => o.key + o.corners.flat().join()).join()}<OverlayMap {overlays} />{/key}
@@ -369,6 +409,7 @@
   .facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: .6rem 1rem; margin: 0; }
   .facts dt { font-size: .78rem; color: var(--muted); }
   .facts dd { margin: 0; font-weight: 500; }
+  .nearby { display: flex; flex-direction: column; gap: .3rem; }
   .notes { white-space: pre-wrap; color: var(--muted); font-size: .92rem; margin: .25rem 0 0; }
 
   .timeline { position: relative; height: 34px; margin: .75rem .5rem 0; }

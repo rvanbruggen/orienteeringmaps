@@ -145,3 +145,9 @@ def fit(points: list[dict], width: int, height: int, method: str = "auto", dpi: 
         residuals_m=residuals, rms_m=rms, metres_per_px=round(m_per_px, 4), scale=scale,
         rotation_deg=round(rotation, 2),
     )
+
+
+def pixels_to_latlon(matrix: list[list[float]], pixels: list[list[float]]) -> list[list[float]]:
+    """Apply a stored fit to image pixel coordinates; returns [[lat, lon], ...]."""
+    h = np.array(matrix, dtype=float)
+    return [[round(v, 7) for v in from_merc(*_apply(h, x, y))] for x, y in pixels]

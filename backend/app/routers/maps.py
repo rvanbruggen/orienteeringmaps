@@ -1,8 +1,12 @@
 """Maps, versions, events and courses."""
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+import re
 
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
+from sqlalchemy import select
+from sqlalchemy.orm import Session, selectinload
+
+from .. import kml
 from .. import models as m
 from .. import schemas as s
 from .. import services
@@ -97,6 +101,28 @@ def delete_map(map_id: int, db: Session = Depends(get_session)):
     db.commit()
 
 
+def _safe_name(name: str) -> str:
+    return re.sub(r"[^\w\-]+", "-", name).strip("-") or "map"
+
+
+@router.get("/maps/{map_id}/kmz")
+def map_kmz(map_id: int, page_id: int | None = None, all_pages: bool = False, db: Session = Depends(get_session)):
+    """Google Earth overlay of a map: its main placed page, a chosen page, or every placed page."""
+    mp = services.load_map(db, map_id)
+    placed = [p for v in mp.versions for f in v.files for p in f.pages if p.georef is not None]
+    if page_id is not None:
+        pages = [p for p in placed if p.id == page_id]
+    elif all_pages:
+        pages = placed
+    else:
+        pages = [p] if (p := services.primary_page(mp)) else []
+    if not pages:
+        raise HTTPException(404, "This map has no placed pages")
+    data = kml.build_kmz(mp.name, [(mp, pages)])
+    return Response(data, media_type="application/vnd.google-earth.kmz",
+                    headers={"Content-Disposition": f'attachment; filename="{_safe_name(mp.name)}.kmz"'})
+
+
 # ---------------------------------------------------------------- versions --
 
 @router.post("/maps/{map_id}/versions", response_model=s.VersionOut, status_code=201)
@@ -130,6 +156,23 @@ def delete_version(version_id: int, db: Session = Depends(get_session)):
 
 
 # ------------------------------------------------------------------ events --
+
+@router.get("/events", response_model=list[s.EventListItem])
+def list_events(db: Session = Depends(get_session)):
+    """Every event on every map, newest first (undated last)."""
+    events = db.scalars(select(m.Event).options(
+        selectinload(m.Event.version).selectinload(m.MapVersion.map),
+        selectinload(m.Event.organiser), selectinload(m.Event.courses))).all()
+    out = [s.EventListItem(
+        id=e.id, name=e.name, date=e.date, end_date=e.end_date, event_type=e.event_type,
+        discipline=e.discipline, organiser_name=e.organiser.name if e.organiser else None,
+        results_url=e.results_url, course_count=len(e.courses),
+        course_names=[c.name for c in e.courses], map_id=e.version.map_id, map_name=e.version.map.name,
+        map_location=e.version.map.location, version_label=e.version.label,
+        survey_date=e.version.survey_date) for e in events]
+    # Dated events first (newest first), undated ones last.
+    return sorted(out, key=lambda e: (e.date is not None, e.date or "", e.id), reverse=True)
+
 
 @router.post("/versions/{version_id}/events", response_model=s.EventOut, status_code=201)
 def create_event(version_id: int, data: s.EventIn, db: Session = Depends(get_session)):

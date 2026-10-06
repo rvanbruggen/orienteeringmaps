@@ -113,3 +113,40 @@ def test_georeference_page(client):
 
     assert client.delete(f"/api/pages/{page['id']}/georef").status_code == 204
     assert client.get(f"/api/maps/{mp['id']}").json()["placed_count"] == 1
+
+
+def test_exports_and_events(client):
+    import io
+    import zipfile
+    from tests.test_georef import synth
+    f = upload(client, "map.pdf", make_pdf("Schaal 1/5.000"))["file"]
+    mp = client.post("/api/maps", json={"name": "Kmz Test", "file_ids": [f["id"]],
+                                        "event": {"name": "Race", "date": "2024-05-01"},
+                                        "courses": [{"name": "A"}]}).json()
+    client.post("/api/maps", json={"name": "Pin only", "lat": 51.0, "lon": 4.5})
+    assert client.get(f"/api/maps/{mp['id']}/kmz").status_code == 404
+
+    page = f["pages"][0]
+    w, h = page["width"], page["height"]
+    pts = synth([(50, 60), (w - 40, 80), (w - 60, h - 50)])
+    client.put(f"/api/pages/{page['id']}/georef", json={"points": pts, "clip": [[0, 0], [w, 0], [w, h / 2]]})
+
+    summary = next(m for m in client.get("/api/maps").json() if m["id"] == mp["id"])
+    assert len(summary["footprint"]) == 3 and summary["overlay"]["page_id"] == page["id"]
+
+    r = client.get(f"/api/maps/{mp['id']}/kmz")
+    assert r.status_code == 200
+    z = zipfile.ZipFile(io.BytesIO(r.content))
+    doc = z.read("doc.kml").decode()
+    assert "gx:LatLonQuad" in doc and "Kmz Test" in doc
+    assert any(n.endswith(".png") for n in z.namelist())  # clipped -> transparent PNG
+
+    allz = zipfile.ZipFile(io.BytesIO(client.get("/api/export/kmz").content)).read("doc.kml").decode()
+    assert "Pin only" in allz and "Kmz Test" in allz
+
+    gj = client.get("/api/export/geojson").json()
+    kinds = {feat["properties"]["name"]: feat["geometry"]["type"] for feat in gj["features"]}
+    assert kinds == {"Kmz Test": "Polygon", "Pin only": "Point"}
+
+    events = client.get("/api/events").json()
+    assert events[0]["name"] == "Race" and events[0]["map_name"] == "Kmz Test" and events[0]["course_names"] == ["A"]

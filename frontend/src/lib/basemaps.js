@@ -15,14 +15,14 @@ export const BASEMAPS = [
   { id: 'vl-grb', name: 'GRB base map (Vlaanderen)', url: VL('GRB', 'grb_bsk'), attribution: VL_ATTR, maxNativeZoom: 21 },
 ]
 
-const STORE_KEY = 'omaps.basemap'
-
-export function savedBasemap() {
-  try { return localStorage.getItem(STORE_KEY) || 'vl-ortho' } catch { return 'vl-ortho' }
-}
-
-/** Add a layer switcher to a Leaflet map; returns the layers by name. */
-export function addBasemaps(map, initial = savedBasemap()) {
+/**
+ * Add a layer switcher to a Leaflet map; returns the layers by name.
+ * The choice is remembered per `key`, so the overview map and the
+ * placement editor can each keep their own preferred base map.
+ */
+export function addBasemaps(map, { key = 'omaps.basemap', fallback = 'vl-ortho' } = {}) {
+  let initial = fallback
+  try { initial = localStorage.getItem(key) || fallback } catch { /* ignore */ }
   const layers = {}
   for (const b of BASEMAPS) {
     layers[b.name] = L.tileLayer(b.url, { attribution: b.attribution, maxNativeZoom: b.maxNativeZoom, maxZoom: 22, id: b.id })
@@ -31,7 +31,7 @@ export function addBasemaps(map, initial = savedBasemap()) {
   layers[first.name].addTo(map)
   L.control.layers(layers, null, { position: 'topright' }).addTo(map)
   map.on('baselayerchange', (e) => {
-    try { localStorage.setItem(STORE_KEY, e.layer.options.id) } catch { /* ignore */ }
+    try { localStorage.setItem(key, e.layer.options.id) } catch { /* ignore */ }
   })
   return layers
 }

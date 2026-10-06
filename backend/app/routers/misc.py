@@ -11,7 +11,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.background import BackgroundTask
 
-from .. import __version__, config, processing
+from fastapi.responses import JSONResponse, Response
+
+from .. import __version__, config, kml, processing
 from .. import models as m
 from .. import schemas as s
 from .. import services
@@ -76,3 +78,26 @@ def export_all(include_files: bool = True, db: Session = Depends(get_session)):
     stamp = datetime.now().strftime("%Y%m%d-%H%M")
     return FileResponse(tmp.name, media_type="application/zip", filename=f"orienteeringmaps-{stamp}.zip",
                         background=BackgroundTask(lambda: __import__("os").unlink(tmp.name)))
+
+
+@router.get("/export/kmz")
+def export_kmz(db: Session = Depends(get_session)):
+    """All maps for Google Earth: the main placed page of each, plus pins for maps with only a location."""
+    maps = db.scalars(select(m.Map).options(*services.MAP_LOAD).order_by(m.Map.name)).all()
+    items = []
+    for mp in maps:
+        page = services.primary_page(mp)
+        if page or mp.lat is not None:
+            items.append((mp, [page] if page else []))
+    data = kml.build_kmz("Orienteering maps", items)
+    stamp = datetime.now().strftime("%Y%m%d")
+    return Response(data, media_type="application/vnd.google-earth.kmz",
+                    headers={"Content-Disposition": f'attachment; filename="orienteering-maps-{stamp}.kmz"'})
+
+
+@router.get("/export/geojson")
+def export_geojson(db: Session = Depends(get_session)):
+    """Map outlines (placed) and points (location only) as GeoJSON, e.g. for QGIS or uMap."""
+    maps = db.scalars(select(m.Map).options(*services.MAP_LOAD).order_by(m.Map.name)).all()
+    return JSONResponse(kml.build_geojson(maps), media_type="application/geo+json",
+                        headers={"Content-Disposition": 'attachment; filename="orienteering-maps.geojson"'})

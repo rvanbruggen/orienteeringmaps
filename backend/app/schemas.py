@@ -174,6 +174,24 @@ class EventOut(_Out):
     courses: list[CourseOut] = []
 
 
+class EventListItem(BaseModel):
+    id: int
+    name: str
+    date: str | None
+    end_date: str | None
+    event_type: str | None
+    discipline: str | None
+    organiser_name: str | None
+    results_url: str | None
+    course_count: int
+    course_names: list[str]
+    map_id: int
+    map_name: str
+    map_location: str | None
+    version_label: str | None
+    survey_date: str | None
+
+
 class CoursesFromFile(_In):
     file_id: int
     skip_first_page: bool = False
@@ -255,6 +273,8 @@ class MapSummary(BaseModel):
     course_count: int
     file_count: int
     placed_count: int = 0
+    footprint: list[list[float]] | None = None  # [[lat, lon]] outline of the main placed page
+    overlay: dict | None = None  # main placed page: {page_id, image_url, width, height, corners, clip}
     thumb_url: str | None
     updated_at: datetime
 

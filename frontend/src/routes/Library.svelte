@@ -4,6 +4,7 @@
   import { go } from '../lib/router.svelte.js'
   import { meta, notify } from '../lib/stores.svelte.js'
   import { fmtScale, fmtContour, fmtDate, label, yearsAgo } from '../lib/format.js'
+  import ExplorerMap from '../components/ExplorerMap.svelte'
 
   const PREFS_KEY = 'omaps.library'
   let maps = $state([])
@@ -93,6 +94,7 @@
     <div class="seg" role="group" aria-label="View">
       <button class:on={prefs.view === 'table'} onclick={() => (prefs.view = 'table')}>Table</button>
       <button class:on={prefs.view === 'grid'} onclick={() => (prefs.view = 'grid')}>Cards</button>
+      <button class:on={prefs.view === 'map'} onclick={() => (prefs.view = 'map')}>Map</button>
     </div>
     <button onclick={exportCsv} disabled={!filtered.length}>CSV</button>
   </div>
@@ -123,6 +125,8 @@
       <p>Upload PDFs or images of your orienteering maps to get started.</p>
       <a class="btn primary" href="#/upload">+ Add maps</a>
     </div>
+  {:else if prefs.view === 'map'}
+    <ExplorerMap maps={filtered} />
   {:else if !filtered.length}
     <p class="empty">No maps match these filters.</p>
   {:else if prefs.view === 'table'}

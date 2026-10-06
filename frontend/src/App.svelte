@@ -8,6 +8,7 @@
   import Inbox from './routes/Inbox.svelte'
   import Clubs from './routes/Clubs.svelte'
   import Georef from './routes/Georef.svelte'
+  import Events from './routes/Events.svelte'
 
   onMount(() => {
     refreshMeta()
@@ -32,6 +33,7 @@
     <a href="#/inbox" class:active={active('/inbox')}>
       Inbox {#if meta.counts.inbox}<span class="count badge">{meta.counts.inbox}</span>{/if}
     </a>
+    <a href="#/events" class:active={active('/events')}>Events</a>
     <a href="#/clubs" class:active={active('/clubs')}>Clubs</a>
     <a href="#/upload" class="upload" class:active={active('/upload')}>+ Add maps</a>
   </nav>
@@ -45,6 +47,8 @@
   <Upload />
 {:else if route.path === '/inbox'}
   <Inbox />
+{:else if route.path === '/events'}
+  <Events />
 {:else if route.path === '/clubs'}
   <Clubs />
 {:else}
@@ -54,6 +58,8 @@
 <footer>
   <span>v{meta.version}</span>
   <a href="/api/export" download>Export everything (.zip)</a>
+  <a href="/api/export/kmz" download title="All placed maps for Google Earth">Google Earth (.kmz)</a>
+  <a href="/api/export/geojson" download title="Map outlines for QGIS, uMap, …">GeoJSON</a>
 </footer>
 
 {#if toast.message}
@@ -79,7 +85,7 @@
   nav a.upload:hover { filter: brightness(1.06); }
   .count { font-size: .78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
   .badge { background: var(--accent); color: #fff; border-radius: 999px; padding: 0 .4rem; }
-  footer { display: flex; gap: 1rem; justify-content: center; padding: 1.5rem; font-size: .82rem; color: var(--muted); }
+  footer { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; padding: 1.5rem; font-size: .82rem; color: var(--muted); }
   .toast {
     position: fixed; bottom: 1rem; left: 50%; transform: translateX(-50%); z-index: 100;
     background: var(--text); color: var(--bg); padding: .6rem 1rem; border-radius: 8px; box-shadow: var(--shadow);

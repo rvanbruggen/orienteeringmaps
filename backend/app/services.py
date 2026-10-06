@@ -3,6 +3,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from . import georef as g
 from . import models as m
 from . import schemas as s
 
@@ -79,6 +80,32 @@ def latest_version(mp: m.Map) -> m.MapVersion | None:
     return max(mp.versions, key=lambda v: (_sort_key(v.survey_date), v.id))
 
 
+def primary_page(mp: m.Map) -> m.Page | None:
+    """The placed page that represents a map: newest version first, maps before courses."""
+    versions = sorted(mp.versions, key=lambda v: (_sort_key(v.survey_date), v.id), reverse=True)
+    for v in versions:
+        files = sorted(v.files, key=lambda f: (f.kind not in ("map", "blank"), f.id))
+        for f in files:
+            if f.kind == "manual":
+                continue
+            for p in f.pages:
+                if p.georef is not None:
+                    return p
+    return None
+
+
+def footprint(page: m.Page) -> list[list[float]]:
+    geo = page.georef
+    if geo.clip and len(geo.clip) >= 3:
+        return g.pixels_to_latlon(geo.matrix, geo.clip)
+    return geo.corners
+
+
+def overlay_of(page: m.Page) -> dict:
+    return {"page_id": page.id, "image_url": derived_url(page.image_name), "width": page.width,
+            "height": page.height, "corners": page.georef.corners, "clip": page.georef.clip}
+
+
 def map_summary(mp: m.Map) -> dict:
     latest = latest_version(mp)
     events = [e for v in mp.versions for e in v.events]
@@ -102,7 +129,15 @@ def map_summary(mp: m.Map) -> dict:
         course_count=sum(len(e.courses) for e in events), file_count=len(files),
         placed_count=sum(1 for f in files for p in f.pages if p.georef is not None),
         thumb_url=thumb, updated_at=mp.updated_at,
+        **_placement(mp),
     )
+
+
+def _placement(mp: m.Map) -> dict:
+    page = primary_page(mp)
+    if page is None:
+        return {"footprint": None, "overlay": None}
+    return {"footprint": footprint(page), "overlay": overlay_of(page)}
 
 
 MAP_LOAD = (
