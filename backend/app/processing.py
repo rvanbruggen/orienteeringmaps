@@ -131,7 +131,7 @@ def _ocr(img: Image.Image) -> str | None:
         small = img.convert("L")
         if max(small.size) > 4000:
             small.thumbnail((4000, 4000), Image.LANCZOS)
-        return pytesseract.image_to_string(small, lang=langs, timeout=120) or None
+        return pytesseract.image_to_string(small, lang=langs, timeout=600) or None
     except Exception as exc:  # OCR is best effort
         log.warning("OCR failed: %s", exc)
         return None

@@ -1,6 +1,6 @@
 # Orienteering Map Manager — Proposed Plan
 
-Status: **Phase 1 built (v0.1.0)** — Phase 2 (georeferencing) next
+Status: **Phase 1 built (v0.1.1)** — Phase 2 (georeferencing) next
 
 ## 0. Decisions so far
 
