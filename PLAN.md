@@ -1,6 +1,6 @@
 # Orienteering Map Manager — Proposed Plan
 
-Status: **Phase 3 built (v0.3.0)** — Phase 4 (extras from §6) next
+Status: **Phase 4 built (v0.4.0)**: coverage & insights. Other §6 extras (version compare, live GPS, Strava/Garmin) are not on the roadmap for now.
 
 ## 0. Decisions so far
 
@@ -144,8 +144,8 @@ Ordered by my guess at value for you:
 | **1. Foundation** ✅ v0.1.0 | Project skeleton, Docker setup, DB schema, PDF + image upload, rendering, text extraction (OCR for images), metadata forms, table view, bulk import of `map-sources/` | All 32 PDFs browsable with metadata |
 | **2. Georeferencing** ✅ v0.2.0 | Side-by-side control-point editor, similarity/affine/perspective fitting + residuals, clip polygon, overlay display with opacity. *A separate "straighten photo" step turned out unnecessary: the perspective fit places angled phone photos directly.* | Maps shown on the satellite base map |
 | **3. Explorer & history** ✅ v0.3.0 | Map-based search, versions and events timeline, KMZ export | Full find-and-browse experience |
-| **4. Extras** | Pick from §6 (version compare, insights, PWA…) | — |
-| **v2** | Personal race history: Strava / Garmin Connect import, GPS tracks on the overlay | — |
+| **4. Extras** ✅ v0.4.0 | Coverage & insights page (§6 item 4). Version compare, PWA/live GPS and overlap tooling were dropped from the roadmap. | Insights page |
+| ~~v2~~ | ~~Personal race history: Strava / Garmin Connect import~~ (not on the roadmap for now) | — |
 
 Docker deployment to the Mint box is part of Phase 1, so every phase can be used on the real server straight away.
 

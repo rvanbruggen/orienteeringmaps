@@ -2,7 +2,7 @@
 
 A personal library for orienteering maps: upload PDFs and images, record each map's versions (survey dates), events and courses, place maps on top of aerial photos, and find maps again in a table or on a map. See [PLAN.md](PLAN.md) for the roadmap.
 
-## Features (v0.3)
+## Features (v0.4)
 
 - **Upload** PDFs and images (PNG, JPG, TIFF, WebP, HEIC). Originals are stored unchanged, pages are rendered, and duplicates are detected: exact copies by hash, look-alikes by perceptual hash.
 - **Pre-filled details**: scale, contour interval, survey date, cartographer, club and course length are read from the PDF text, or from OCR for images. GPS coordinates are read from phone photos.
@@ -20,6 +20,12 @@ A personal library for orienteering maps: upload PDFs and images, record each ma
 - **Explorer map** (v0.3): the library's Map view shows every map as its outline (placed) or a pin (location only), using the same filters as the table. A side list shows the maps in view. Zoomed in, the map images are drawn on top.
 - **Events** page: every event on every map, grouped by year, with search and filters.
 - **Nearby maps** on each map page, with overlapping maps flagged.
+- **Insights** (v0.4):
+  - Totals: maps, placed share, mapped area, events, courses, clubs, oldest survey.
+  - A coverage map coloured by survey age.
+  - Charts of events per year and maps by survey age, club, scale and type, each with a table view.
+  - Lists of surveys older than N years and maps without an event in N years.
+  - A tidy-up checklist: needs review, not placed, no location, no survey date, no club, inbox.
 - **Google Earth export**: a KMZ per map or for the whole library. Rotated and perspective placements are kept, and the outline becomes transparency. Also a GeoJSON export of all outlines for QGIS or uMap.
 
 ## Run with Docker

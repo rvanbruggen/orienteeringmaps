@@ -9,6 +9,7 @@
   import Clubs from './routes/Clubs.svelte'
   import Georef from './routes/Georef.svelte'
   import Events from './routes/Events.svelte'
+  import Insights from './routes/Insights.svelte'
 
   onMount(() => {
     refreshMeta()
@@ -34,6 +35,7 @@
       Inbox {#if meta.counts.inbox}<span class="count badge">{meta.counts.inbox}</span>{/if}
     </a>
     <a href="#/events" class:active={active('/events')}>Events</a>
+    <a href="#/insights" class:active={active('/insights')}>Insights</a>
     <a href="#/clubs" class:active={active('/clubs')}>Clubs</a>
     <a href="#/upload" class="upload" class:active={active('/upload')}>+ Add maps</a>
   </nav>
@@ -49,6 +51,8 @@
   <Inbox />
 {:else if route.path === '/events'}
   <Events />
+{:else if route.path === '/insights'}
+  <Insights />
 {:else if route.path === '/clubs'}
   <Clubs />
 {:else}
