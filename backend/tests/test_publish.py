@@ -102,6 +102,10 @@ def test_build_site(client, site_dist):
     assert len(data_paths) == 1 and data_paths[0] in page
     # One warning: Forest has no club.
     assert [w["name"] for w in site.warnings] == ["Forest"]
+    assert site.data["site"].get("issues_url") is None  # owner unknown: no removal link
+    with db.SessionLocal() as session:
+        site = publish.build_site(session, settings | {"github_repo": "rik/omaps"}, "https://maps.example.org/")
+    assert site.data["site"]["issues_url"] == "https://github.com/rik/omaps/issues"
 
 
 def test_preview_endpoint(client, site_dist):
@@ -143,7 +147,7 @@ def test_publish_pushes_with_git(client, site_dist, tmp_path, monkeypatch):
     monkeypatch.setattr(config, "GITHUB_TOKEN", "test-token")
     monkeypatch.setattr(github, "status", lambda settings: {
         "token": True, "login": "rik", "repo": "rik/omaps-public", "repo_exists": True, "can_push": True})
-    monkeypatch.setattr(github, "_ensure_pages", lambda *a: None)
+    monkeypatch.setattr(github, "_ensure_pages", lambda *a: True)
     _library(client)
 
     def publish_once():

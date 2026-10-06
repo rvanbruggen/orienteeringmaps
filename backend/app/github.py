@@ -113,17 +113,19 @@ def _checkout(repo_dir, full: str, branch: str, say) -> None:
         raise PublishError(f"Cannot fetch {full}: {res.stderr.strip()[:300]}")
 
 
-def _ensure_pages(full: str, branch: str, say) -> str | None:
+def _ensure_pages(full: str, branch: str, say) -> bool:
+    """Make sure GitHub Pages serves the branch. Returns False if it is (still) off."""
     r = _api("GET", f"/repos/{full}/pages")
     if r.status_code == 200:
-        return r.json().get("html_url")
+        return True
     r = _api("POST", f"/repos/{full}/pages", json={"source": {"branch": branch, "path": "/"}})
     if r.status_code in (201, 409):
         say("Switched on GitHub Pages for the repository.")
-        return r.json().get("html_url") if r.status_code == 201 else None
-    say(f"Could not switch on GitHub Pages ({r.status_code}). Do it once by hand: repository Settings → Pages → "
-        f"Deploy from a branch → {branch} / (root).")
-    return None
+        return True
+    hint = " (the token has no Pages write permission)" if r.status_code == 403 else ""
+    say(f"GitHub Pages is not switched on yet{hint}, so the site is NOT live. Do it once by hand: "
+        f"https://github.com/{full}/settings/pages → Deploy from a branch → {branch} / (root) → Save.")
+    return False
 
 
 def run(run_id: int) -> None:
@@ -150,7 +152,7 @@ def run(run_id: int) -> None:
             if not st.get("can_push"):
                 raise PublishError(f"The token cannot write to {st['repo']}: give it Contents read and write.")
             if settings.get("github_login") != st["login"]:
-                publish.save_settings(session, {"github_login": st["login"]})
+                settings = publish.save_settings(session, {"github_login": st["login"]})
             full, branch = st["repo"], settings["github_branch"] or "main"
             url = publish.site_url(settings, st["login"])
             pr.repo = full
@@ -177,8 +179,8 @@ def run(run_id: int) -> None:
                 pr.commit_sha = _git(repo_dir, "rev-parse", "HEAD").stdout.strip()
                 say(f"Pushed {pr.commit_sha[:7]}: {msg}.")
                 pr.status = "done"
-            _ensure_pages(full, branch, say)
-            say(f"Live in a minute or two at {url}")
+            if _ensure_pages(full, branch, say):
+                say(f"Live in a minute or two at {url}")
         except Exception as exc:  # noqa: BLE001 - every failure must end up in the run log
             log.exception("publish failed")
             pr.status = "error"

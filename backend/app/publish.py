@@ -335,6 +335,8 @@ def build_site(db: Session, settings: dict, url: str, *, base: str | None = None
             "title": settings["site_title"], "description": settings["site_description"],
             "author": settings["author"], "contact": settings["contact"], "about": settings["about"],
             "url": url, "generated": updated.date().isoformat() if updated else None,
+            # Removal requests go to the site repository's issues.
+            "issues_url": f"https://github.com/{full}/issues" if (full := repo_full_name(settings)) else None,
             "app_version": __version__,
         }),
         "maps": maps,

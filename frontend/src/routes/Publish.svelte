@@ -137,7 +137,11 @@
         <dl class="facts">
           {#if gh.login}<div><dt>Account</dt><dd>{gh.login}</dd></div>{/if}
           {#if gh.repo}<div><dt>Repository</dt><dd>{#if gh.html_url}<a href={gh.html_url} target="_blank" rel="noopener">{gh.repo}</a>{:else}{gh.repo}{/if}</dd></div>{/if}
-          {#if gh.repo_exists}<div><dt>Pages</dt><dd>{gh.pages ? gh.pages.status ?? 'on' : 'switched on at first publish'}</dd></div>{/if}
+          {#if gh.repo_exists}<div><dt>Pages</dt><dd>
+            {#if gh.pages}{gh.pages.status ?? 'on'}
+            {:else if last}<span class="err">off</span> · <a href="{gh.html_url}/settings/pages" target="_blank" rel="noopener">switch on</a>
+            {:else}switched on at first publish{/if}
+          </dd></div>{/if}
           {#if gh.private}<div><dt>Warning</dt><dd class="err">Repository is private</dd></div>{/if}
         </dl>
       {/if}

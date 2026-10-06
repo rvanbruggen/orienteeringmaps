@@ -13,6 +13,7 @@
 
   const VIEW_KEY = untrack(() => `${storageKey}.view`)
   const IMAGES_KEY = untrack(() => `${storageKey}.images`)
+  const OPACITY_KEY = untrack(() => `${storageKey}.opacity`)
   const IMAGE_MIN_ZOOM = 14
   const MAX_IMAGES = 12
 
@@ -25,6 +26,7 @@
   let inView = $state([])
   let onlyInView = $state(true)
   let showImages = $state(load(IMAGES_KEY, true))
+  let opacity = $state(load(OPACITY_KEY, 0.85))
   let zoom = $state(0)
   let hovered = $state(null)
 
@@ -108,7 +110,7 @@
     for (const id of want) {
       if (imageLayers.has(id)) continue
       const o = located.find((m) => m.id === id).overlay
-      const layer = new WarpedImage(o.image_url, o.width, o.height, o.corners, { opacity: 0.85, clip: o.clip })
+      const layer = new WarpedImage(o.image_url, o.width, o.height, o.corners, { opacity, clip: o.clip })
       images.addLayer(layer)
       imageLayers.set(id, layer)
     }
@@ -131,6 +133,11 @@
     untrack(draw)
   })
   $effect(() => {
+    const o = opacity
+    save(OPACITY_KEY, o)
+    untrack(() => imageLayers.forEach((layer) => layer.setOpacity(o)))
+  })
+  $effect(() => {
     save(IMAGES_KEY, showImages)
     untrack(refreshView)
   })
@@ -151,6 +158,9 @@
       <button class="small" onclick={fitAll}>Fit all</button>
       <label class="inline"><input type="checkbox" bind:checked={showImages} /> Map images
         {#if showImages && zoom < IMAGE_MIN_ZOOM}<span class="muted">(zoom in)</span>{/if}</label>
+      {#if showImages && zoom >= IMAGE_MIN_ZOOM}
+        <label class="inline">Opacity <input type="range" min="0" max="1" step="0.05" bind:value={opacity} aria-label="Map image opacity" /></label>
+      {/if}
     </div>
   </div>
   <aside class="card side">
@@ -184,6 +194,7 @@
   .leaf { position: absolute; inset: 0; background: #e8e6e1; }
   .tools { position: absolute; left: 3.2rem; top: .6rem; z-index: 500; padding: .3rem .5rem; display: flex; gap: .6rem; align-items: center; }
   .inline { display: inline-flex; align-items: center; gap: .3rem; font-size: .85rem; white-space: nowrap; }
+  .inline input[type='range'] { width: 90px; accent-color: var(--accent); }
   .side { padding: 0; display: flex; flex-direction: column; min-height: 0; }
   .head { padding: .55rem .75rem; border-bottom: 1px solid var(--border); }
   .note { font-size: .82rem; padding: .5rem .75rem; margin: 0; }

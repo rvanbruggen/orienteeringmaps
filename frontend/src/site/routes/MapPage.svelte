@@ -1,5 +1,5 @@
 <script>
-  import { store, mapHref, km } from '../data.svelte.js'
+  import { store, mapHref, km, removalUrl } from '../data.svelte.js'
   import { fmtBytes, fmtContour, fmtDate, fmtKm, fmtScale, label } from '../../lib/format.js'
   import OverlayMap from '../../components/OverlayMap.svelte'
   import Lightbox from '../../components/Lightbox.svelte'
@@ -85,7 +85,10 @@
         </dl>
         {#if map.tags.length}<div class="row">{#each map.tags as t}<span class="chip accent">{t}</span>{/each}</div>{/if}
         {#if map.note}<p class="note">{map.note}</p>{/if}
-        <p class="muted small credit">{credit}</p>
+        <p class="muted small credit">
+          {credit}
+          {#if removalUrl(map)}· <a href={removalUrl(map)} target="_blank" rel="noopener" title="Own this map and want it taken off this site? Open a request on GitHub.">Request removal</a>{/if}
+        </p>
       </div>
     </section>
 

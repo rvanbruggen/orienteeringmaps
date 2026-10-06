@@ -61,3 +61,20 @@ export function km([a, b], [c, d]) {
   const r = Math.PI / 180, x = (d - b) * r * Math.cos(((a + c) / 2) * r), y = (c - a) * r
   return Math.sqrt(x * x + y * y) * 6371
 }
+
+/** A GitHub "new issue" link asking to take a map off the site, or null without a repository. */
+export function removalUrl(m) {
+  const issues = store.site?.issues_url
+  if (!issues) return null
+  const page = new URL(mapHref(m), document.baseURI).href
+  const body = [
+    `Please remove this map from the site: ${m.name}`,
+    page,
+    '',
+    'Who are you? (for example the club or cartographer that owns the map)',
+    '',
+    'Reason (optional):',
+    '',
+  ].join('\n')
+  return `${issues}/new?${new URLSearchParams({ title: `Remove map: ${m.name}`, body })}`
+}
