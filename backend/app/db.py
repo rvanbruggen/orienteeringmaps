@@ -15,6 +15,25 @@ SessionLocal: sessionmaker | None = None
 # Never edit an entry once released; append a new one instead.
 MIGRATIONS: list[str] = [
     "",  # 0 -> 1: initial schema (created by create_all)
+    # 1 -> 2 (v0.2.0): georeferencing
+    """
+    ALTER TABLE pages ADD COLUMN dpi FLOAT;
+    CREATE TABLE georeferences (
+        id INTEGER NOT NULL PRIMARY KEY,
+        page_id INTEGER NOT NULL UNIQUE REFERENCES pages (id) ON DELETE CASCADE,
+        requested_method VARCHAR(20) NOT NULL,
+        method VARCHAR(20) NOT NULL,
+        points JSON NOT NULL,
+        clip JSON,
+        matrix JSON NOT NULL,
+        corners JSON NOT NULL,
+        rms_m FLOAT,
+        scale FLOAT,
+        rotation_deg FLOAT,
+        metres_per_px FLOAT,
+        updated_at DATETIME NOT NULL
+    )
+    """,
 ]
 
 

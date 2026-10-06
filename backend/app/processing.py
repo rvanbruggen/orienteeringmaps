@@ -45,6 +45,7 @@ class RenderedPage:
     image_name: str
     thumb_name: str
     text: str | None
+    dpi: float | None = None
 
 
 @dataclass
@@ -180,7 +181,8 @@ def render_pages(stored_name: str, fmt: str, digest: str, *, ocr: bool = True) -
                 text = page.get_text().strip() or None
                 texts.append(text or "")
                 names = _save_page_images(img, digest, i)
-                result.pages.append(RenderedPage(i, names[2], names[3], names[0], names[1], text))
+                dpi = z * 72 * names[2] / pix.width  # _save_page_images may downscale
+                result.pages.append(RenderedPage(i, names[2], names[3], names[0], names[1], text, round(dpi, 3)))
             joined = "\n".join(texts).strip()
             if joined:
                 result.text, result.text_source = joined[:200_000], "pdf"
@@ -192,12 +194,15 @@ def render_pages(stored_name: str, fmt: str, digest: str, *, ocr: bool = True) -
     else:
         with Image.open(src) as raw:
             result.exif_lat, result.exif_lon = _exif_gps(raw)
+            # Scans carry a real resolution; phone photos say 72 dpi, which means nothing.
+            info_dpi = raw.info.get("dpi", (None,))[0]
             img = ImageOps.exif_transpose(raw)
             img.load()
         first_img = img
         text = _ocr(img) if ocr else None
         names = _save_page_images(img, digest, 1)
-        result.pages.append(RenderedPage(1, names[2], names[3], names[0], names[1], text))
+        dpi = float(info_dpi) * names[2] / img.width if info_dpi and float(info_dpi) >= 150 else None
+        result.pages.append(RenderedPage(1, names[2], names[3], names[0], names[1], text, dpi and round(dpi, 3)))
         if text:
             result.text, result.text_source = text, "ocr"
 

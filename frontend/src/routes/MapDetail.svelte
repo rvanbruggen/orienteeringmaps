@@ -9,7 +9,7 @@
   import VersionFields from '../components/VersionFields.svelte'
   import EventFields from '../components/EventFields.svelte'
   import CourseFields from '../components/CourseFields.svelte'
-  import Modal from '../components/Modal.svelte'
+  import OverlayMap from '../components/OverlayMap.svelte'
 
   let { id } = $props()
   let map = $state(null)
@@ -26,6 +26,12 @@
   onMount(load)
 
   const allFiles = $derived(map ? map.versions.flatMap((v) => v.files) : [])
+  const overlays = $derived(map ? map.versions.flatMap((v) => v.files.flatMap((f) => f.pages.filter((p) => p.georef).map((p) => ({
+    key: p.id, page_id: p.id, image_url: p.image_url, width: p.width, height: p.height,
+    corners: p.georef.corners, clip: p.georef.clip,
+    label: `${versionTitle(v)} · ${f.original_name}${f.page_count > 1 ? ` · p${p.page_no}` : ''}`,
+  })))) : [])
+  const firstPlaceable = $derived(allFiles.find((f) => f.kind !== 'manual' && f.pages.length))
   const hero = $derived(map?.versions.flatMap((v) => v.files).find((f) => f.kind !== 'manual' && f.pages.length))
 
   // ------------------------------------------------------------- timeline --
@@ -181,6 +187,22 @@
       </div>
     </section>
 
+    <section class="onmap">
+      <div class="row sect-head">
+        <h2>On the map</h2>
+        {#if overlays.length}<span class="muted">{overlays.length} placed page{overlays.length > 1 ? 's' : ''}</span>{/if}
+      </div>
+      {#if overlays.length}
+        {#key overlays.map((o) => o.key + o.corners.flat().join()).join()}<OverlayMap {overlays} />{/key}
+      {:else if firstPlaceable}
+        <div class="card placehint row">
+          <span>Not placed yet. Pair a few points on the map with the aerial photo to show it on top of the real world.</span>
+          <span class="spacer"></span>
+          <a class="btn primary" href="#/place/{firstPlaceable.pages[0].id}">Place on map</a>
+        </div>
+      {/if}
+    </section>
+
     <div class="row sect-head">
       <h2>Versions</h2>
       <span class="muted">{map.versions.length}</span>
@@ -237,6 +259,11 @@
                       {#each meta.enums.file_kinds as k}<option value={k}>{label(k)}</option>{/each}
                     </select>
                     <a class="btn small ghost" href={f.original_url} target="_blank" rel="noopener" title="Original file">↓</a>
+                    {#if f.pages.length}
+                      <a class="btn small {f.pages.some((p) => p.georef) ? 'ghost placed' : ''}" href="#/place/{f.pages[0].id}"
+                        title={f.pages[0].georef ? `Placed with ${f.pages[0].georef.point_count} points` : 'Place this page on the map'}>
+                        {f.pages.some((p) => p.georef) ? '✓ Placed' : 'Place'}</a>
+                    {/if}
                     <button class="small ghost" onclick={() => detachFile(f)} title="Move back to the inbox">To inbox</button>
                   </div>
                 </div>
@@ -355,6 +382,9 @@
   .dot-s { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-left: .4rem; }
 
   .sect-head { margin-bottom: .75rem; }
+  .onmap { margin-bottom: 2rem; }
+  .placehint { gap: .75rem; }
+  .placed { color: var(--ok); }
   .sect-head h2 { margin: 0; }
   .version { margin-bottom: 1.25rem; }
   .vt { margin: 0; }

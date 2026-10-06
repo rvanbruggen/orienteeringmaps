@@ -118,8 +118,11 @@ def cmd_rerender(_args) -> int:
             by_no = {p.page_no: p for p in pf.pages}
             for page in f.pages:
                 if (r := by_no.get(page.page_no)):
-                    page.image_name, page.thumb_name, page.width, page.height = (
-                        r.image_name, r.thumb_name, r.width, r.height)
+                    if page.georef and (page.width, page.height) != (r.width, r.height):
+                        print(f"  WARNING {f.original_name} p{page.page_no}: size changed, placement removed")
+                        page.georef = None
+                    page.image_name, page.thumb_name, page.width, page.height, page.dpi = (
+                        r.image_name, r.thumb_name, r.width, r.height, r.dpi)
             print(f"  rendered {f.original_name}")
         session.commit()
     return 0

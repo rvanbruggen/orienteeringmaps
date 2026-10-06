@@ -112,6 +112,7 @@ label.field input, label.field select, label.field textarea { color: var(--text)
 }
 .chip.accent { background: color-mix(in srgb, var(--accent) 15%, transparent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); color: var(--accent-ink); }
 .chip.course { background: color-mix(in srgb, var(--course) 12%, transparent); border-color: color-mix(in srgb, var(--course) 40%, transparent); color: var(--course); }
+.chip.ok { background: color-mix(in srgb, var(--ok) 13%, transparent); border-color: color-mix(in srgb, var(--ok) 40%, transparent); color: var(--ok); }
 .chip.warn { background: color-mix(in srgb, var(--warn) 15%, transparent); border-color: color-mix(in srgb, var(--warn) 45%, transparent); color: var(--warn); }
 .num { font-variant-numeric: tabular-nums; }
 .empty { text-align: center; color: var(--muted); padding: 3rem 1rem; }

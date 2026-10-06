@@ -1,6 +1,6 @@
 # Orienteering Map Manager — Proposed Plan
 
-Status: **Phase 1 built (v0.1.1)** — Phase 2 (georeferencing) next
+Status: **Phase 2 built (v0.2.0)** — Phase 3 (explorer map, history, KMZ export) next
 
 ## 0. Decisions so far
 
@@ -141,8 +141,8 @@ Ordered by my guess at value for you:
 
 | Phase | Scope | Result |
 |---|---|---|
-| **1. Foundation** | Project skeleton, Docker setup, DB schema, PDF + image upload, rendering, text extraction (OCR for images), metadata forms, table view, bulk import of `map-sources/` | All 32 PDFs browsable with metadata |
-| **2. Georeferencing** | Side-by-side control-point editor, similarity/affine/perspective fitting + residuals, photo straightening, clip polygon, overlay display with opacity | Maps shown on the satellite base map |
+| **1. Foundation** ✅ v0.1.0 | Project skeleton, Docker setup, DB schema, PDF + image upload, rendering, text extraction (OCR for images), metadata forms, table view, bulk import of `map-sources/` | All 32 PDFs browsable with metadata |
+| **2. Georeferencing** ✅ v0.2.0 | Side-by-side control-point editor, similarity/affine/perspective fitting + residuals, clip polygon, overlay display with opacity. *A separate "straighten photo" step turned out unnecessary: the perspective fit places angled phone photos directly.* | Maps shown on the satellite base map |
 | **3. Explorer & history** | Map-based search, versions and events timeline, KMZ export | Full find-and-browse experience |
 | **4. Extras** | Pick from §6 (version compare, insights, PWA…) | — |
 | **v2** | Personal race history: Strava / Garmin Connect import, GPS tracks on the overlay | — |

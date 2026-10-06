@@ -88,8 +88,17 @@ def reprocess(file_id: int, db: Session = Depends(get_session)):
     f = services.get_or_404(db, m.File, file_id)
     processing.delete_derived(f.sha256)
     pf = processing.render_pages(f.stored_name, f.format, f.sha256)
-    f.pages = [m.Page(page_no=p.page_no, width=p.width, height=p.height, image_name=p.image_name,
-                      thumb_name=p.thumb_name, text=p.text) for p in pf.pages]
+    # Update pages in place so placements survive when the page size is unchanged.
+    existing = {p.page_no: p for p in f.pages}
+    pages = []
+    for r in pf.pages:
+        page = existing.get(r.page_no) or m.Page(page_no=r.page_no)
+        if page.georef and (page.width, page.height) != (r.width, r.height):
+            page.georef = None
+        page.width, page.height, page.image_name, page.thumb_name, page.text, page.dpi = (
+            r.width, r.height, r.image_name, r.thumb_name, r.text, r.dpi)
+        pages.append(page)
+    f.pages = pages
     f.page_count, f.phash = pf.page_count, pf.phash
     f.extracted_text, f.text_source = pf.text, pf.text_source
     f.exif_lat, f.exif_lon = pf.exif_lat, pf.exif_lon

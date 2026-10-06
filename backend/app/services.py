@@ -18,9 +18,17 @@ def derived_url(name: str) -> str:
     return f"/media/{name}"
 
 
+def georef_summary(g: m.Georeference | None) -> s.GeorefSummary | None:
+    if g is None:
+        return None
+    return s.GeorefSummary(method=g.method, corners=g.corners, clip=g.clip, rms_m=g.rms_m, scale=g.scale,
+                           rotation_deg=g.rotation_deg, point_count=len(g.points), updated_at=g.updated_at)
+
+
 def page_out(p: m.Page) -> s.PageOut:
-    return s.PageOut(id=p.id, page_no=p.page_no, width=p.width, height=p.height,
-                     image_url=derived_url(p.image_name), thumb_url=derived_url(p.thumb_name))
+    return s.PageOut(id=p.id, page_no=p.page_no, width=p.width, height=p.height, dpi=p.dpi,
+                     image_url=derived_url(p.image_name), thumb_url=derived_url(p.thumb_name),
+                     georef=georef_summary(p.georef))
 
 
 def file_out(f: m.File, with_pages: bool = True) -> s.FileOut:
@@ -92,15 +100,17 @@ def map_summary(mp: m.Map) -> dict:
         last_event=max(event_dates) if event_dates else None,
         version_count=len(mp.versions), event_count=len(events),
         course_count=sum(len(e.courses) for e in events), file_count=len(files),
+        placed_count=sum(1 for f in files for p in f.pages if p.georef is not None),
         thumb_url=thumb, updated_at=mp.updated_at,
     )
 
 
 MAP_LOAD = (
     selectinload(m.Map.club),
-    selectinload(m.Map.versions).selectinload(m.MapVersion.files).selectinload(m.File.pages),
+    selectinload(m.Map.versions).selectinload(m.MapVersion.files).selectinload(m.File.pages)
+    .selectinload(m.Page.georef),
     selectinload(m.Map.versions).selectinload(m.MapVersion.events).selectinload(m.Event.courses)
-    .selectinload(m.Course.file).selectinload(m.File.pages),
+    .selectinload(m.Course.file).selectinload(m.File.pages).selectinload(m.Page.georef),
     selectinload(m.Map.versions).selectinload(m.MapVersion.events).selectinload(m.Event.organiser),
 )
 

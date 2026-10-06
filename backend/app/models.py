@@ -150,5 +150,29 @@ class Page(Base):
     image_name: Mapped[str] = mapped_column(String(200))  # relative to DERIVED_DIR
     thumb_name: Mapped[str] = mapped_column(String(200))
     text: Mapped[str | None] = mapped_column(Text)
+    dpi: Mapped[float | None] = mapped_column(Float)  # pixels per inch of paper, if known
 
     file: Mapped[File] = relationship(back_populates="pages")
+    georef: Mapped["Georeference | None"] = relationship(
+        back_populates="page", cascade="all, delete-orphan", uselist=False
+    )
+
+
+class Georeference(Base):
+    """Where a page image lies on the world, fitted from control points."""
+    __tablename__ = "georeferences"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    page_id: Mapped[int] = mapped_column(ForeignKey("pages.id", ondelete="CASCADE"), unique=True)
+    requested_method: Mapped[str] = mapped_column(String(20))  # what the user chose (may be "auto")
+    method: Mapped[str] = mapped_column(String(20))  # what was fitted
+    points: Mapped[list] = mapped_column(JSON)  # [{x, y, lat, lon}]
+    clip: Mapped[list | None] = mapped_column(JSON)  # [[x, y], ...] image pixels, or None
+    matrix: Mapped[list] = mapped_column(JSON)  # 3x3, image px -> Web Mercator metres
+    corners: Mapped[list] = mapped_column(JSON)  # [[lat, lon]] TL, TR, BR, BL
+    rms_m: Mapped[float | None] = mapped_column(Float)
+    scale: Mapped[float | None] = mapped_column(Float)
+    rotation_deg: Mapped[float | None] = mapped_column(Float)
+    metres_per_px: Mapped[float | None] = mapped_column(Float)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    page: Mapped[Page] = relationship(back_populates="georef")

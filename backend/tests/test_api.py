@@ -81,3 +81,35 @@ def test_unsupported_and_export(client):
     resp = client.get("/api/export")
     assert resp.status_code == 200 and resp.content[:2] == b"PK"
     assert client.get("/api/meta").json()["counts"]["inbox"] == 1
+
+
+def test_georeference_page(client):
+    from tests.test_georef import synth
+    f = upload(client, "map.pdf", make_pdf("Schaal 1/5.000", pages=2))["file"]
+    mp = client.post("/api/maps", json={"name": "Placed", "file_ids": [f["id"]],
+                                        "version": {"scale": 5000}}).json()
+    page = f["pages"][0]
+    ctx = client.get(f"/api/pages/{page['id']}/georef").json()
+    assert ctx["georef"] is None and ctx["stated_scale"] == 5000 and ctx["page"]["dpi"]
+    assert [p["id"] for p in ctx["same_layout_pages"]] == [f["pages"][1]["id"]]
+
+    w, h = page["width"], page["height"]
+    pts = synth([(50, 60), (w - 40, 80), (w - 60, h - 50), (70, h - 90)])
+    fit = client.post("/api/georef/fit", json={"width": w, "height": h, "dpi": ctx["page"]["dpi"], "points": pts[:2]}).json()
+    assert fit["method"] == "similarity"
+    bad = client.post("/api/georef/fit", json={"width": w, "height": h, "points": pts[:1]})
+    assert bad.status_code == 422
+
+    clip = [[0, 0], [w, 0], [w, h / 2]]
+    saved = client.put(f"/api/pages/{page['id']}/georef", json={
+        "points": pts, "clip": clip, "also_page_ids": [f["pages"][1]["id"]]}).json()
+    assert saved["georef"]["method"] == "affine" and saved["georef"]["rms_m"] < 0.5
+    assert saved["georef"]["clip"] == clip
+
+    detail = client.get(f"/api/maps/{mp['id']}").json()
+    assert detail["placed_count"] == 2 and detail["lat"] is not None
+    pages = detail["versions"][0]["files"][0]["pages"]
+    assert all(p["georef"]["point_count"] == 4 for p in pages)
+
+    assert client.delete(f"/api/pages/{page['id']}/georef").status_code == 204
+    assert client.get(f"/api/maps/{mp['id']}").json()["placed_count"] == 1

@@ -75,7 +75,7 @@ def ingest_path(db: Session, path: Path, original_name: str, *, move: bool = Fal
             extracted_text=pf.text, text_source=pf.text_source, exif_lat=pf.exif_lat,
             exif_lon=pf.exif_lon, suggestions=sugg,
             pages=[m.Page(page_no=p.page_no, width=p.width, height=p.height, image_name=p.image_name,
-                          thumb_name=p.thumb_name, text=p.text) for p in pf.pages],
+                          thumb_name=p.thumb_name, text=p.text, dpi=p.dpi) for p in pf.pages],
         )
         db.add(f)
         db.commit()

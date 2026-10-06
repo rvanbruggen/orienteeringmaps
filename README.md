@@ -1,8 +1,8 @@
 # orienteeringmaps
 
-A personal library for orienteering maps: upload PDFs and images, record each map's versions (survey dates), events and courses, and find maps again in a table. Placing maps over satellite imagery and a map-based search come in later phases; see [PLAN.md](PLAN.md).
+A personal library for orienteering maps: upload PDFs and images, record each map's versions (survey dates), events and courses, place maps on top of aerial photos, and find maps again in a table. A map-based search comes next; see [PLAN.md](PLAN.md).
 
-## Features (v0.1)
+## Features (v0.2)
 
 - **Upload** PDFs and images (PNG, JPG, TIFF, WebP, HEIC). Originals are stored unchanged, pages are rendered, and duplicates are detected: exact copies by hash, look-alikes by perceptual hash.
 - **Pre-filled details**: scale, contour interval, survey date, cartographer, club and course length are read from the PDF text, or from OCR for images. GPS coordinates are read from phone photos.
@@ -11,6 +11,12 @@ A personal library for orienteering maps: upload PDFs and images, record each ma
 - **Inbox** for files not yet attached to a map.
 - **Bulk import** of a folder. Course pairs like `…-Kort.pdf` / `…-Lang.pdf` are grouped into one map.
 - **Export everything**: a zip with all metadata as JSON plus every original file.
+- **Place maps on the world** (v0.2): click matching points on the orienteering map and on aerial imagery (Digitaal Vlaanderen orthophoto, GRB, Esri satellite, OpenStreetMap), side by side.
+  - Fits a true-to-scale, affine or perspective transform, with the error per point in metres, the implied scale checked against the printed one, and the map's rotation.
+  - After two points, a predicted marker shows where the next point should go.
+  - An outline hides the legend and margins in the overlay.
+  - Multi-page PDFs with the same layout (one course per page) are placed in one go.
+  - Each map page shows the placed overlay with an opacity slider.
 
 ## Run with Docker
 

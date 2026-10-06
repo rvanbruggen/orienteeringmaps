@@ -151,6 +151,7 @@
                 <a href="#/map/{m.id}" class="name" onclick={(e) => e.stopPropagation()}>{m.name}</a>
                 <div class="chips">
                   {#if m.needs_review}<span class="chip warn">review</span>{/if}
+                  {#if m.placed_count}<span class="chip ok" title="Placed on the map">placed</span>{/if}
                   {#if m.map_type}<span class="chip">{label(m.map_type)}</span>{/if}
                   {#each m.tags as t}<span class="chip accent">{t}</span>{/each}
                 </div>

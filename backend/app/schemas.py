@@ -53,13 +53,26 @@ class ClubOut(_Out):
 
 # ------------------------------------------------------------------- files --
 
+class GeorefSummary(BaseModel):
+    method: str
+    corners: list[list[float]]
+    clip: list[list[float]] | None
+    rms_m: float | None
+    scale: float | None
+    rotation_deg: float | None
+    point_count: int
+    updated_at: datetime
+
+
 class PageOut(_Out):
     id: int
     page_no: int
     width: int
     height: int
+    dpi: float | None = None
     image_url: str
     thumb_url: str
+    georef: GeorefSummary | None = None
 
 
 class FileOut(_Out):
@@ -241,6 +254,7 @@ class MapSummary(BaseModel):
     event_count: int
     course_count: int
     file_count: int
+    placed_count: int = 0
     thumb_url: str | None
     updated_at: datetime
 
@@ -249,3 +263,59 @@ class MapDetail(MapSummary):
     notes: str | None
     created_at: datetime
     versions: list[VersionOut]
+
+
+# ---------------------------------------------------------- georeferencing --
+
+class ControlPoint(BaseModel):
+    x: float
+    y: float
+    lat: float = Field(ge=-85, le=85)
+    lon: float = Field(ge=-180, le=180)
+
+
+class FitRequest(BaseModel):
+    width: int = Field(gt=0)
+    height: int = Field(gt=0)
+    dpi: float | None = None
+    method: str = "auto"
+    points: list[ControlPoint]
+
+
+class GeorefSave(BaseModel):
+    method: str = "auto"
+    points: list[ControlPoint]
+    clip: list[list[float]] | None = None
+    also_page_ids: list[int] = []  # same-layout pages that get the same placement
+
+
+class GeorefOut(BaseModel):
+    requested_method: str
+    method: str
+    points: list[ControlPoint]
+    clip: list[list[float]] | None
+    corners: list[list[float]]
+    rms_m: float | None
+    scale: float | None
+    rotation_deg: float | None
+    metres_per_px: float | None
+    updated_at: datetime
+
+
+class GeorefContext(BaseModel):
+    page: PageOut
+    file_id: int
+    file_name: str
+    file_format: str
+    page_count: int
+    map_id: int | None
+    map_name: str | None
+    map_lat: float | None
+    map_lon: float | None
+    map_location: str | None
+    stated_scale: int | None
+    exif_lat: float | None
+    exif_lon: float | None
+    same_layout_pages: list[PageOut]  # other pages of this file with identical size
+    other_placed: list[dict]  # other placed pages of this map, for reference
+    georef: GeorefOut | None

@@ -7,6 +7,7 @@
   import Upload from './routes/Upload.svelte'
   import Inbox from './routes/Inbox.svelte'
   import Clubs from './routes/Clubs.svelte'
+  import Georef from './routes/Georef.svelte'
 
   onMount(() => {
     refreshMeta()
@@ -14,6 +15,7 @@
   })
 
   const mapMatch = $derived(route.path.match(/^\/map\/(\d+)$/))
+  const placeMatch = $derived(route.path.match(/^\/place\/(\d+)$/))
   const active = (p) => (p === '/' ? route.path === '/' || mapMatch : route.path.startsWith(p))
 </script>
 
@@ -35,7 +37,9 @@
   </nav>
 </header>
 
-{#if mapMatch}
+{#if placeMatch}
+  {#key placeMatch[1]}<Georef pageId={+placeMatch[1]} />{/key}
+{:else if mapMatch}
   {#key mapMatch[1]}<MapDetail id={+mapMatch[1]} />{/key}
 {:else if route.path === '/upload'}
   <Upload />
