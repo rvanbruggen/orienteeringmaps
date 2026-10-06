@@ -10,6 +10,7 @@
   import Georef from './routes/Georef.svelte'
   import Events from './routes/Events.svelte'
   import Insights from './routes/Insights.svelte'
+  import Publish from './routes/Publish.svelte'
 
   onMount(() => {
     refreshMeta()
@@ -37,6 +38,7 @@
     <a href="#/events" class:active={active('/events')}>Events</a>
     <a href="#/insights" class:active={active('/insights')}>Insights</a>
     <a href="#/clubs" class:active={active('/clubs')}>Clubs</a>
+    <a href="#/publish" class:active={active('/publish')}>Publish</a>
     <a href="#/upload" class="upload" class:active={active('/upload')}>+ Add maps</a>
   </nav>
 </header>
@@ -55,6 +57,8 @@
   <Insights />
 {:else if route.path === '/clubs'}
   <Clubs />
+{:else if route.path === '/publish'}
+  <Publish />
 {:else}
   <Library />
 {/if}

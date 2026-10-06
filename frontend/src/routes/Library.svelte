@@ -3,14 +3,14 @@
   import { api } from '../lib/api.js'
   import { go } from '../lib/router.svelte.js'
   import { meta, notify } from '../lib/stores.svelte.js'
-  import { fmtScale, fmtContour, fmtDate, label, yearsAgo } from '../lib/format.js'
+  import { fmtScale, fmtContour, fmtDate, label, yearsAgo, PUBLISH_LEVELS } from '../lib/format.js'
   import ExplorerMap from '../components/ExplorerMap.svelte'
 
   const PREFS_KEY = 'omaps.library'
   let maps = $state([])
   let loading = $state(true)
 
-  const defaults = { q: '', type: '', club: '', tag: '', review: false, sort: 'name', dir: 1, view: 'table' }
+  const defaults = { q: '', type: '', club: '', tag: '', pub: '', review: false, sort: 'name', dir: 1, view: 'table' }
   let prefs = $state({ ...defaults, ...load() })
 
   function load() {
@@ -49,6 +49,7 @@
       (!prefs.type || m.map_type === prefs.type) &&
       (!prefs.club || m.club_name === prefs.club) &&
       (!prefs.tag || m.tags.includes(prefs.tag)) &&
+      (!prefs.pub || (prefs.pub === 'public' ? m.publish_level !== 'private' : m.publish_level === prefs.pub)) &&
       (!prefs.review || m.needs_review))
     const k = prefs.sort
     return out.sort((a, b) => {
@@ -66,8 +67,8 @@
     else { prefs.sort = key; prefs.dir = key.startsWith('last_') ? -1 : 1 }
   }
 
-  const anyFilter = $derived(prefs.q || prefs.type || prefs.club || prefs.tag || prefs.review)
-  const clearFilters = () => Object.assign(prefs, { q: '', type: '', club: '', tag: '', review: false })
+  const anyFilter = $derived(prefs.q || prefs.type || prefs.club || prefs.tag || prefs.pub || prefs.review)
+  const clearFilters = () => Object.assign(prefs, { q: '', type: '', club: '', tag: '', pub: '', review: false })
 
   function exportCsv() {
     const cols = ['name', 'location', 'map_type', 'club_name', 'scale', 'contour_interval', 'last_survey', 'last_event', 'version_count', 'event_count', 'course_count', 'tags', 'lat', 'lon']
@@ -113,6 +114,11 @@
       <option value="">All tags</option>
       {#each tags as t}<option value={t}>{t}</option>{/each}
     </select>
+    <select bind:value={prefs.pub} aria-label="Public site">
+      <option value="">Public & private</option>
+      <option value="public">On the public site</option>
+      {#each PUBLISH_LEVELS as l}<option value={l.value}>{l.label}{l.value === 'private' ? ' only' : ''}</option>{/each}
+    </select>
     <label class="check"><input type="checkbox" bind:checked={prefs.review} /> Needs review</label>
     {#if anyFilter}<button class="ghost small" onclick={clearFilters}>Clear</button>{/if}
   </div>
@@ -156,6 +162,7 @@
                 <div class="chips">
                   {#if m.needs_review}<span class="chip warn">review</span>{/if}
                   {#if m.placed_count}<span class="chip ok" title="Placed on the map">placed</span>{/if}
+                  {#if m.publish_level !== 'private'}<span class="chip course" title="On the public site">public · {m.publish_level}</span>{/if}
                   {#if m.map_type}<span class="chip">{label(m.map_type)}</span>{/if}
                   {#each m.tags as t}<span class="chip accent">{t}</span>{/each}
                 </div>

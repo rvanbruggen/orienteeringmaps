@@ -8,10 +8,11 @@
   import { go } from '../lib/router.svelte.js'
   import { fmtDate, fmtScale } from '../lib/format.js'
 
-  let { maps = [] } = $props()
+  // href/open: how to link to a map (the public site uses its own routes).
+  let { maps = [], href = (m) => `#/map/${m.id}`, open = (m) => go(`/map/${m.id}`), storageKey = 'omaps.explorer', showUnlocated = true } = $props()
 
-  const VIEW_KEY = 'omaps.explorer.view'
-  const IMAGES_KEY = 'omaps.explorer.images'
+  const VIEW_KEY = untrack(() => `${storageKey}.view`)
+  const IMAGES_KEY = untrack(() => `${storageKey}.images`)
   const IMAGE_MIN_ZOOM = 14
   const MAX_IMAGES = 12
 
@@ -40,7 +41,7 @@
 
   onMount(() => {
     map = L.map(el, { maxZoom: 22, zoomSnap: 0.5 })
-    addBasemaps(map, { key: 'omaps.explorer.basemap', fallback: 'osm' })
+    addBasemaps(map, { key: `${untrack(() => storageKey)}.basemap`, fallback: 'osm' })
     shapes.addTo(map)
     images.addTo(map)
     const saved = load(VIEW_KEY, null)
@@ -60,7 +61,7 @@
   function popupHtml(m) {
     const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
     const facts = [m.location, m.club_name, fmtScale(m.scale), m.last_survey && `survey ${fmtDate(m.last_survey)}`, m.last_event && `last event ${fmtDate(m.last_event)}`].filter(Boolean)
-    return `<a class="xp-pop" href="#/map/${m.id}">
+    return `<a class="xp-pop" href="${esc(href(m))}">
       ${m.thumb_url ? `<img src="${esc(m.thumb_url)}" alt="">` : ''}
       <span><strong>${esc(m.name)}</strong><small>${facts.map(esc).join(' · ')}</small></span></a>`
   }
@@ -158,11 +159,11 @@
       <span class="spacer"></span>
       <label class="inline"><input type="checkbox" bind:checked={onlyInView} /> in view</label>
     </div>
-    {#if unlocated}<p class="muted note">{unlocated} map{unlocated === 1 ? ' has' : 's have'} no location yet — place {unlocated === 1 ? 'it' : 'them'} or add coordinates.</p>{/if}
+    {#if unlocated && showUnlocated}<p class="muted note">{unlocated} map{unlocated === 1 ? ' has' : 's have'} no location yet — place {unlocated === 1 ? 'it' : 'them'} or add coordinates.</p>{/if}
     <ul>
       {#each listed as m (m.id)}
         <li class:hover={hovered === m.id} onmouseenter={() => (hovered = m.id)} onmouseleave={() => (hovered = null)}>
-          <button class="ghost item" onclick={() => focus(m)} ondblclick={() => go(`/map/${m.id}`)}>
+          <button class="ghost item" onclick={() => focus(m)} ondblclick={() => open(m)}>
             {#if m.thumb_url}<img src={m.thumb_url} alt="" loading="lazy" />{/if}
             <span class="txt">
               <span class="nm">{m.name}</span>

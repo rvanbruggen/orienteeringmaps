@@ -47,6 +47,9 @@ class Map(Base):
     tags: Mapped[list] = mapped_column(JSON, default=list)
     notes: Mapped[str | None] = mapped_column(Text)
     needs_review: Mapped[int] = mapped_column(Integer, default=0)  # set by bulk import
+    # What the public site shows: private | outline | overlay | full (see publish.py).
+    publish_level: Mapped[str] = mapped_column(String(10), default="private", server_default="private")
+    public_note: Mapped[str | None] = mapped_column(Text)  # shown on the public site instead of notes
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
@@ -176,3 +179,23 @@ class Georeference(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     page: Mapped[Page] = relationship(back_populates="georef")
+
+
+class Setting(Base):
+    """Small key/value store for app settings (public site configuration)."""
+    __tablename__ = "settings"
+    key: Mapped[str] = mapped_column(String(60), primary_key=True)
+    value: Mapped[dict | list | str | None] = mapped_column(JSON)
+
+
+class PublishRun(Base):
+    """One push of the public site to GitHub."""
+    __tablename__ = "publish_runs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(20), default="running")  # running | done | unchanged | error
+    repo: Mapped[str | None] = mapped_column(String(200))
+    commit_sha: Mapped[str | None] = mapped_column(String(40))
+    summary: Mapped[dict | None] = mapped_column(JSON)
+    log: Mapped[str | None] = mapped_column(Text)

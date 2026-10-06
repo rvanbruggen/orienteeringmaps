@@ -39,3 +39,11 @@ export function parseScale(s) {
   const digits = String(s).replace(/^\s*1\s*[:/]\s*/, '').replace(/[^\d]/g, '')
   return digits ? parseInt(digits, 10) : null
 }
+
+/** Public site publish levels (see backend/app/publish.py). */
+export const PUBLISH_LEVELS = [
+  { value: 'private', label: 'Private', hint: 'Not on the public site' },
+  { value: 'outline', label: 'Outline', hint: 'Details, events and where the map is; no images' },
+  { value: 'overlay', label: 'Overlay', hint: 'Plus the main map image, placed on the aerial photo' },
+  { value: 'full', label: 'Full', hint: 'Plus every page and course print, and the original files to download' },
+]

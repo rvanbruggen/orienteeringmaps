@@ -11,6 +11,7 @@ export default defineConfig({
       '/api': backend,
       '/media': backend,
       '/healthz': backend,
+      '/site-preview': backend,
     },
   },
 })

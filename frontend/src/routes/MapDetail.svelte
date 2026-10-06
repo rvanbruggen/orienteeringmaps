@@ -3,7 +3,7 @@
   import { api, pick, uploadFile, MAP_KEYS, VERSION_KEYS, EVENT_KEYS, COURSE_KEYS } from '../lib/api.js'
   import { go } from '../lib/router.svelte.js'
   import { meta, notify, refreshMeta } from '../lib/stores.svelte.js'
-  import { fmtBytes, fmtContour, fmtDate, fmtKm, fmtScale, isPartialDate, label } from '../lib/format.js'
+  import { fmtBytes, fmtContour, fmtDate, fmtKm, fmtScale, isPartialDate, label, PUBLISH_LEVELS } from '../lib/format.js'
   import Lightbox from '../components/Lightbox.svelte'
   import MapFields from '../components/MapFields.svelte'
   import VersionFields from '../components/VersionFields.svelte'
@@ -123,6 +123,8 @@
   const removeCourse = (c) => confirm(`Delete course “${c.name}”?`) && act(() => api.del(`/api/courses/${c.id}`))
   const detachFile = (f) => confirm(`Move “${f.original_name}” back to the inbox?`) && act(() => api.patch(`/api/files/${f.id}`, { map_version_id: null }), 'Moved to inbox')
   const setKind = (f, kind) => act(() => api.patch(`/api/files/${f.id}`, { kind }))
+  const setPublish = (level) => act(() => api.patch(`/api/maps/${id}`, { publish_level: level }),
+    level === 'private' ? 'Removed from the public site at the next publish' : `Public site: ${PUBLISH_LEVELS.find((l) => l.value === level).label}`)
   const markReviewed = () => act(() => api.patch(`/api/maps/${id}`, { needs_review: false }), 'Marked as reviewed')
   const coursesFromPages = (ev, f) => act(() => api.post(`/api/events/${ev.id}/courses/from-file`, { file_id: f.id }), `Created ${f.page_count} courses`)
 
@@ -194,10 +196,16 @@
             {#if map.contour_interval}<div><dt>Contours</dt><dd>{fmtContour(map.contour_interval)}</dd></div>{/if}
             <div><dt>Last survey</dt><dd>{fmtDate(map.last_survey) || '—'}</dd></div>
             <div><dt>Last event</dt><dd>{fmtDate(map.last_event) || '—'}</dd></div>
+            <div><dt>Public site</dt><dd>
+              <select class="pub" value={map.publish_level} onchange={(e) => setPublish(e.target.value)} title={PUBLISH_LEVELS.find((l) => l.value === map.publish_level)?.hint}>
+                {#each PUBLISH_LEVELS as l}<option value={l.value}>{l.label}</option>{/each}
+              </select>
+            </dd></div>
             {#if map.lat != null}<div><dt>Coordinates</dt><dd><a href="https://www.openstreetmap.org/?mlat={map.lat}&mlon={map.lon}#map=15/{map.lat}/{map.lon}" target="_blank" rel="noopener">{map.lat.toFixed(5)}, {map.lon.toFixed(5)}</a></dd></div>{/if}
           </dl>
           {#if map.tags.length}<div class="row">{#each map.tags as t}<span class="chip accent">{t}</span>{/each}</div>{/if}
           {#if map.notes}<p class="notes">{map.notes}</p>{/if}
+          {#if map.public_note && map.publish_level !== 'private'}<p class="notes"><span class="chip ok">public note</span> {map.public_note}</p>{/if}
           {#if nearby.length}
             <div class="nearby">
               <span class="muted small">Nearby maps</span>
@@ -409,6 +417,7 @@
   .facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: .6rem 1rem; margin: 0; }
   .facts dt { font-size: .78rem; color: var(--muted); }
   .facts dd { margin: 0; font-weight: 500; }
+  .facts .pub { padding: .1rem .3rem; font-size: .88rem; width: auto; }
   .nearby { display: flex; flex-direction: column; gap: .3rem; }
   .notes { white-space: pre-wrap; color: var(--muted); font-size: .92rem; margin: .25rem 0 0; }
 

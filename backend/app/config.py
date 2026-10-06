@@ -12,6 +12,15 @@ DERIVED_DIR = DATA_DIR / "derived"
 # Static frontend build (served by FastAPI in the Docker image).
 FRONTEND_DIST = Path(os.environ.get("OMAPS_FRONTEND_DIST", Path(__file__).resolve().parents[2] / "frontend" / "dist"))
 
+# Public site viewer build (frontend/dist-site), used as the template for publishing.
+SITE_DIST = Path(os.environ.get("OMAPS_SITE_DIST", FRONTEND_DIST.parent / "dist-site"))
+# Working area for the public site: local preview and the git checkout that is pushed.
+PUBLISH_DIR = DATA_DIR / "publish"
+# GitHub fine-grained token with Contents + Pages read/write on the public site repo only.
+GITHUB_TOKEN = os.environ.get("OMAPS_GITHUB_TOKEN", "")
+GITHUB_API = os.environ.get("OMAPS_GITHUB_API", "https://api.github.com")
+GITHUB_GIT = os.environ.get("OMAPS_GITHUB_GIT", "https://github.com")
+
 # Optional HTTP basic auth. Empty = no auth (LAN use).
 APP_USER = os.environ.get("OMAPS_USER", "rik")
 APP_PASSWORD = os.environ.get("OMAPS_PASSWORD", "")

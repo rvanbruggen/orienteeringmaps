@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__, config, db
-from .routers import clubs, files, georef, maps, misc
+from .routers import clubs, files, georef, maps, misc, publish
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -38,7 +38,7 @@ def healthz():
     return {"ok": True, "version": __version__}
 
 
-for r in (maps.router, files.router, clubs.router, georef.router, misc.router):
+for r in (maps.router, files.router, clubs.router, georef.router, misc.router, publish.router):
     app.include_router(r)
 
 config.ensure_dirs()

@@ -8,9 +8,10 @@ RUN npm run build
 
 # --- runtime ----------------------------------------------------------------
 FROM python:3.12-slim
-# Tesseract (+ Dutch/French) for reading scale/contours/dates from image maps.
+# Tesseract (+ Dutch/French) for reading scale/contours/dates from image maps;
+# git for publishing the public site to GitHub Pages.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        tesseract-ocr tesseract-ocr-nld tesseract-ocr-fra sqlite3 \
+        tesseract-ocr tesseract-ocr-nld tesseract-ocr-fra sqlite3 git \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -19,9 +20,11 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 
 COPY backend/app ./backend/app
 COPY --from=frontend /build/dist ./frontend/dist
+COPY --from=frontend /build/dist-site ./frontend/dist-site
 
 ENV OMAPS_DATA_DIR=/data \
     OMAPS_FRONTEND_DIST=/app/frontend/dist \
+    OMAPS_SITE_DIST=/app/frontend/dist-site \
     PYTHONUNBUFFERED=1
 WORKDIR /app/backend
 RUN useradd --uid 1000 --create-home omaps && mkdir -p /data && chown omaps /data

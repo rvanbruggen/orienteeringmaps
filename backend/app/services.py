@@ -120,7 +120,7 @@ def map_summary(mp: m.Map) -> dict:
     return dict(
         id=mp.id, name=mp.name, location=mp.location, lat=mp.lat, lon=mp.lon,
         map_type=mp.map_type, club_id=mp.club_id, club_name=mp.club.name if mp.club else None,
-        tags=mp.tags or [], needs_review=bool(mp.needs_review),
+        tags=mp.tags or [], needs_review=bool(mp.needs_review), publish_level=mp.publish_level or "private",
         scale=latest.scale if latest else None,
         contour_interval=latest.contour_interval if latest else None,
         last_survey=max(surveys) if surveys else None,
@@ -159,7 +159,7 @@ def load_map(db: Session, map_id: int) -> m.Map:
 
 def map_detail(mp: m.Map) -> s.MapDetail:
     return s.MapDetail(
-        **map_summary(mp), notes=mp.notes, created_at=mp.created_at,
+        **map_summary(mp), notes=mp.notes, public_note=mp.public_note, created_at=mp.created_at,
         versions=[version_out(v) for v in sorted(mp.versions, key=lambda v: (_sort_key(v.survey_date), v.id), reverse=True)],
     )
 

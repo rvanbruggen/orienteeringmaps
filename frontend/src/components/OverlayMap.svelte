@@ -6,7 +6,7 @@
   import { WarpedImage, pixelsToLatLons } from '../lib/warp.js'
 
   // overlays: [{key, label, page_id, image_url, width, height, corners, clip}]
-  let { overlays = [] } = $props()
+  let { overlays = [], adjustable = true } = $props()
   let el = $state()
   let map, layer
   let current = $state() // selected overlay key; defaults to the first
@@ -60,7 +60,7 @@
     <label class="inline"><input type="checkbox" bind:checked={outline} /> Outline</label>
     <button class="small" onclick={zoomTo}>Zoom to map</button>
     <span class="spacer"></span>
-    {#if active}<a class="btn small" href="#/place/{active.page_id}">Adjust placement</a>{/if}
+    {#if active && adjustable}<a class="btn small" href="#/place/{active.page_id}">Adjust placement</a>{/if}
   </div>
   <div class="leaf" bind:this={el}></div>
 </div>

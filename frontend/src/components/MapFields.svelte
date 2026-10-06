@@ -1,7 +1,7 @@
 <script>
   import { api } from '../lib/api.js'
   import { meta, notify } from '../lib/stores.svelte.js'
-  import { label } from '../lib/format.js'
+  import { label, PUBLISH_LEVELS } from '../lib/format.js'
   import ClubSelect from './ClubSelect.svelte'
   import TagInput from './TagInput.svelte'
 
@@ -44,7 +44,16 @@
     {/if}
   </div>
   <label class="field wide"><span>Tags</span><TagInput bind:tags={map.tags} id="{prefix}-tags" suggestions={tagSuggestions} /></label>
-  <label class="field wide"><span>Notes</span><textarea bind:value={map.notes} rows="2"></textarea></label>
+  <label class="field wide"><span>Notes <span class="hint">(private)</span></span><textarea bind:value={map.notes} rows="2"></textarea></label>
+  <label class="field"><span>Public site</span>
+    <select bind:value={map.publish_level}>
+      {#each PUBLISH_LEVELS as l}<option value={l.value}>{l.label}</option>{/each}
+    </select>
+    <span class="hint">{PUBLISH_LEVELS.find((l) => l.value === (map.publish_level ?? 'private'))?.hint}</span>
+  </label>
+  {#if map.publish_level && map.publish_level !== 'private'}
+    <label class="field wide"><span>Public note <span class="hint">(shown on the public site)</span></span><textarea bind:value={map.public_note} rows="2"></textarea></label>
+  {/if}
 </div>
 
 <style>

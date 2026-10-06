@@ -34,6 +34,25 @@ MIGRATIONS: list[str] = [
         updated_at DATETIME NOT NULL
     )
     """,
+    # 2 -> 3 (v0.5.0): public site
+    """
+    ALTER TABLE maps ADD COLUMN publish_level VARCHAR(10) NOT NULL DEFAULT 'private';
+    ALTER TABLE maps ADD COLUMN public_note TEXT;
+    CREATE TABLE settings (
+        key VARCHAR(60) NOT NULL PRIMARY KEY,
+        value JSON
+    );
+    CREATE TABLE publish_runs (
+        id INTEGER NOT NULL PRIMARY KEY,
+        started_at DATETIME NOT NULL,
+        finished_at DATETIME,
+        status VARCHAR(20) NOT NULL,
+        repo VARCHAR(200),
+        commit_sha VARCHAR(40),
+        summary JSON,
+        log TEXT
+    )
+    """,
 ]
 
 

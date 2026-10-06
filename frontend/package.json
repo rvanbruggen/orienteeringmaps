@@ -1,11 +1,11 @@
 {
   "name": "orienteeringmaps-frontend",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.5.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && vite build -c vite.site.config.js",
     "preview": "vite preview"
   },
   "devDependencies": {

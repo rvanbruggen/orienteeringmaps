@@ -57,7 +57,8 @@ def create_map(data: s.MapCreate, db: Session = Depends(get_session)):
     _check_club(db, data.club_id)
     mp = m.Map(name=data.name, location=data.location, lat=data.lat, lon=data.lon,
                map_type=data.map_type, club_id=data.club_id, tags=data.tags or [], notes=data.notes,
-               needs_review=int(bool(data.needs_review)))
+               needs_review=int(bool(data.needs_review)), publish_level=data.publish_level or "private",
+               public_note=data.public_note)
     version = m.MapVersion(**(data.version.model_dump() if data.version else {}))
     mp.versions.append(version)
     db.add(mp)
@@ -82,7 +83,7 @@ def create_map(data: s.MapCreate, db: Session = Depends(get_session)):
 def update_map(map_id: int, data: s.MapIn, db: Session = Depends(get_session)):
     mp = services.get_or_404(db, m.Map, map_id)
     _check_club(db, data.club_id)
-    _apply(mp, data, required=("name",))
+    _apply(mp, data, required=("name", "publish_level"))
     if "tags" in data.model_fields_set and mp.tags is None:
         mp.tags = []
     db.commit()

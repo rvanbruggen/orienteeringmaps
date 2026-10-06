@@ -31,7 +31,7 @@ def meta(db: Session = Depends(get_session)):
         "counts": {"maps": count(m.Map), "files": count(m.File), "events": count(m.Event),
                    "clubs": count(m.Club), "inbox": inbox},
         "enums": {"map_types": s.MAP_TYPES, "file_kinds": s.FILE_KINDS, "event_types": s.EVENT_TYPES,
-                  "disciplines": s.DISCIPLINES, "standards": s.STANDARDS},
+                  "disciplines": s.DISCIPLINES, "standards": s.STANDARDS, "publish_levels": s.PUBLISH_LEVELS},
     }
 
 

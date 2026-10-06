@@ -2,7 +2,7 @@
 
 A personal library for orienteering maps: upload PDFs and images, record each map's versions (survey dates), events and courses, place maps on top of aerial photos, and find maps again in a table or on a map. See [PLAN.md](PLAN.md) for the roadmap.
 
-## Features (v0.4)
+## Features (v0.5)
 
 - **Upload** PDFs and images (PNG, JPG, TIFF, WebP, HEIC). Originals are stored unchanged, pages are rendered, and duplicates are detected: exact copies by hash, look-alikes by perceptual hash.
 - **Pre-filled details**: scale, contour interval, survey date, cartographer, club and course length are read from the PDF text, or from OCR for images. GPS coordinates are read from phone photos.
@@ -27,6 +27,15 @@ A personal library for orienteering maps: upload PDFs and images, record each ma
   - Lists of surveys older than N years and maps without an event in N years.
   - A tidy-up checklist: needs review, not placed, no location, no survey date, no club, inbox.
 - **Google Earth export**: a KMZ per map or for the whole library. Rotated and perspective placements are kept, and the outline becomes transparency. Also a GeoJSON export of all outlines for QGIS or uMap.
+- **Public site** (v0.5): publish a chosen part of the library as a static website on GitHub Pages.
+  - Per map, choose what goes out:
+    - *Private*: not on the site (the default).
+    - *Outline*: details, events and location only.
+    - *Overlay*: also the main map image on the aerial photo.
+    - *Full*: also every page, course print and the original files to download.
+  - The site has a map explorer with search and filters, a page per map with the overlay and opacity slider, an events list and an About page.
+  - Every map has its own page, plus a sitemap, so search engines can find them.
+  - The **Publish** page shows what will change and lets you open a local preview. It pushes to GitHub with one click.
 
 ## Run with Docker
 
@@ -42,6 +51,7 @@ The app listens on port 8420. All state lives in `./data` on the host:
 | `data/orienteeringmaps.db` | SQLite database (WAL mode) | yes — use `sqlite3 … ".backup …"` |
 | `data/originals/` | uploaded files, named by SHA-256 | yes |
 | `data/derived/` | rendered pages and thumbnails | no — rebuild with `rerender` |
+| `data/publish/` | public site preview and the checkout that is pushed | no — rebuilt at the next publish |
 
 ### Bulk import
 
@@ -58,6 +68,20 @@ To rebuild rendered pages after changing render settings:
 ```bash
 docker compose exec orienteeringmaps python -m app.cli rerender
 ```
+
+### Public site on GitHub Pages
+
+1. On GitHub, create a **public**, empty repository, for example `orienteeringmaps-public`.
+2. Create a [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new):
+   - Repository access: **only** that repository.
+   - Permissions: **Contents** set to "Read and write", and **Pages** set to "Read and write".
+3. Add it to `.env` on the Docker host as `OMAPS_GITHUB_TOKEN=github_pat_…`, then run `docker compose up -d`.
+4. Open **Publish** in the app:
+   - Check the repository name and the site title.
+   - Set maps to Outline, Overlay or Full.
+   - Press **Publish now**.
+
+GitHub Pages is switched on at the first publish. The site appears at `https://<account>.github.io/<repository>/`. For a custom domain, set the site address on the Publish page and configure the domain in the repository's Pages settings.
 
 ### Deploying an update
 

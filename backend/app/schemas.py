@@ -9,6 +9,7 @@ MAP_TYPES = ["forest", "park", "sprint", "urban", "school", "permanent", "mtbo",
 FILE_KINDS = ["map", "course", "blank", "control_descriptions", "manual", "other"]
 EVENT_TYPES = ["race", "training", "permanent", "school", "championship", "relay", "other"]
 DISCIPLINES = ["sprint", "middle", "long", "relay", "score", "night", "ultra", "knock-out", "other"]
+PUBLISH_LEVELS = ["private", "outline", "overlay", "full"]
 STANDARDS = ["ISOM 2017-2", "ISOM 2000", "ISSprOM 2019-2", "ISSOM 2007", "ISMTBOM", "ISSkiOM", "other"]
 
 
@@ -235,6 +236,8 @@ class MapIn(_In):
     tags: list[str] | None = None
     notes: str | None = None
     needs_review: bool | None = None
+    publish_level: str | None = Field(None, pattern="^(private|outline|overlay|full)$")
+    public_note: str | None = None
 
 
 class InitialCourse(_In):
@@ -264,6 +267,7 @@ class MapSummary(BaseModel):
     club_name: str | None
     tags: list[str]
     needs_review: bool
+    publish_level: str = "private"
     scale: int | None
     contour_interval: float | None
     last_survey: str | None
@@ -281,6 +285,7 @@ class MapSummary(BaseModel):
 
 class MapDetail(MapSummary):
     notes: str | None
+    public_note: str | None = None
     created_at: datetime
     versions: list[VersionOut]
 
