@@ -40,6 +40,16 @@ class FakeStrava:
         if path == "/oauth/deauthorize":
             self.deauthorized = True
             return httpx.Response(200, json={})
+        if path.startswith("/api/v3/activities/") and path.endswith("/photos"):
+            aid = path.split("/")[4]
+            return httpx.Response(200, json=[
+                {"unique_id": f"{aid}-{i}", "urls": {"5000": f"https://cdn.example/{aid}-{i}.png"},
+                 "sizes": {"5000": [300, 200]}, "created_at": "2026-09-19T12:00:00Z", "caption": None}
+                for i in (1, 2)] + [{"unique_id": None, "urls": {}}])  # a video: skipped
+        if request.url.host == "cdn.example":
+            from tests.conftest import make_png
+            n = int(path.rsplit("-", 1)[1].split(".")[0])
+            return httpx.Response(200, content=make_png(color=(40 * n, 120, 200)))
         if path == "/api/v3/athlete/activities":
             assert request.headers["authorization"].startswith("Bearer access-")
             page, per = int(request.url.params["page"]), int(request.url.params["per_page"])
@@ -292,3 +302,63 @@ def test_not_a_race():
     for n in ["Orienteering in Hulst, to the start of race 1", "Orienteering in As - back to the cc.",
               "Sylvester Orienteering: back from the finish"]:
         assert not strava.looks_like_orienteering({"name": n, "sport_type": "Walk"})
+
+
+def test_import_photos_into_linked_event(client, fake):
+    mp, route = _placed_map(client)
+    fake.activities = [_activity(1, "HITTA Leuven", day=19, total_photo_count=2,
+                                 map={"summary_polyline": _encode(route)})]
+    _connect(client)
+    client.post("/api/strava/sync", json={})
+    assert client.get("/api/strava/activities").json()[0]["photo_count"] == 2
+    ev = client.get("/api/strava/activities/1001/choices").json()["maps"][0]["events"][0]
+    lang = ev["courses"][1]
+    client.put("/api/strava/activities/1001/link", json={"map_id": mp["id"], "event_id": ev["id"], "course_id": lang["id"]})
+
+    photos = client.get("/api/strava/activities/1001/photos").json()
+    assert [p["id"] for p in photos] == ["1001-1", "1001-2"] and photos[0]["file"] is None
+    r = client.post("/api/strava/activities/1001/photos/import", json={"photos": [
+        {"id": "1001-1", "kind": "course"}, {"id": "1001-2", "kind": "other"}]})
+    assert r.status_code == 200, r.text
+    assert [x["status"] for x in r.json()] == ["created", "created"]
+
+    detail = client.get(f"/api/maps/{mp['id']}").json()
+    files = {f["id"]: f for f in detail["versions"][0]["files"]}
+    course_file, card = (files[x["file_id"]] for x in r.json())
+    assert course_file["source"] == "strava" and course_file["kind"] == "course" and card["kind"] == "other"
+    assert course_file["exif_lat"] is not None  # the route's middle, to start placing in the right spot
+    course = next(c for c in detail["versions"][0]["events"][0]["courses"] if c["id"] == lang["id"])
+    assert course["file_id"] == course_file["id"]
+
+    # Imported photos are recognised; importing again changes nothing.
+    assert client.get("/api/strava/activities/1001/photos").json()[0]["file"]["id"] == course_file["id"]
+    again = client.post("/api/strava/activities/1001/photos/import", json={"photos": [{"id": "1001-1"}]}).json()
+    assert again == [{"photo_id": "1001-1", "status": "already", "file_id": course_file["id"]}]
+    assert client.post("/api/strava/activities/1001/photos/import",
+                       json={"photos": [{"id": "nope"}]}).status_code == 404
+
+
+def test_import_photos_unlinked_goes_to_inbox(client, fake):
+    fake.activities = [_activity(1, "Orienteering somewhere", day=19)]
+    _connect(client)
+    client.post("/api/strava/sync", json={})
+    r = client.post("/api/strava/activities/1001/photos/import", json={"photos": [{"id": "1001-2", "kind": "map"}]}).json()
+    inbox = client.get("/api/files?unassigned=true").json()
+    assert [f["id"] for f in inbox] == [r[0]["file_id"]] and inbox[0]["source"] == "strava"
+
+
+def test_publish_warns_about_strava_photos(client):
+    from tests.conftest import make_png
+    from tests.test_api import upload
+    from app import db as dbmod, publish, services
+    from app import models as m
+    f = upload(client, "photo.png", make_png())["file"]
+    mp = client.post("/api/maps", json={"name": "Park", "lat": 51, "lon": 4, "file_ids": [f["id"]],
+                                        "publish_level": "full"}).json()
+    with dbmod.SessionLocal() as s:
+        warn = lambda: publish._warnings(services.load_map(s, mp["id"]), {})  # noqa: E731
+        assert not any("Strava" in w for w in warn())
+        s.get(m.File, f["id"]).source = "strava"
+        s.commit()
+        s.expire_all()
+        assert any("Strava" in w for w in warn())

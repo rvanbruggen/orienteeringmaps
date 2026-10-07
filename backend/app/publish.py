@@ -228,6 +228,11 @@ def _warnings(mp: m.Map, rec: dict) -> list[str]:
         out.append("has no location, so it is not on the map")
     if mp.club is None:
         out.append("has no club for the copyright credit")
+    hero = _hero_page(mp) if mp.publish_level == "overlay" else None
+    if (mp.publish_level == "full" and any(f.source == "strava" for v in mp.versions for f in v.files)) or \
+            (hero is not None and hero.file.source == "strava"):
+        out.append("uses a photo imported from Strava, which Strava's terms allow showing only to you: "
+                   "upload your own copy of the photo instead")
     return out
 
 

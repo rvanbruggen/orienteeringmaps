@@ -40,7 +40,7 @@ def file_out(f: m.File, with_pages: bool = True) -> s.FileOut:
         map_name=version.map.name if version else None,
         kind=f.kind, original_name=f.original_name, format=f.format, size_bytes=f.size_bytes,
         page_count=f.page_count, text_source=f.text_source, exif_lat=f.exif_lat, exif_lon=f.exif_lon,
-        suggestions=f.suggestions or {}, notes=f.notes, created_at=f.created_at,
+        suggestions=f.suggestions or {}, notes=f.notes, source=f.source, created_at=f.created_at,
         original_url=f"/api/files/{f.id}/original",
         thumb_url=derived_url(f.pages[0].thumb_name) if f.pages else None,
         pages=[page_out(p) for p in f.pages] if with_pages else [],

@@ -91,6 +91,7 @@ class FileOut(_Out):
     exif_lon: float | None
     suggestions: dict
     notes: str | None
+    source: str | None = None
     created_at: datetime
     original_url: str
     thumb_url: str | None

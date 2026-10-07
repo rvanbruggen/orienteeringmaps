@@ -191,6 +191,35 @@ def _api_get(token: str, path: str, params: dict) -> list | dict:
     return r.json()
 
 
+PHOTO_SIZE = 5000  # ask for the largest; Strava serves at most 2048 px on the long side
+
+
+def photos(db: Session, activity_id: int) -> list[dict]:
+    """The photos on an activity: [{id, url, width, height, created_at, caption}]."""
+    token = _access_token(db)
+    items = _api_get(token, f"/activities/{activity_id}/photos", {"size": PHOTO_SIZE, "photo_sources": "true"})
+    out = []
+    for p in items:
+        url = next(iter((p.get("urls") or {}).values()), None)
+        if not url or not p.get("unique_id"):
+            continue  # e.g. a video, or a photo still processing
+        w, h = (next(iter((p.get("sizes") or {}).values()), None) or [None, None])[:2]
+        out.append({"id": p["unique_id"], "url": url, "width": w, "height": h,
+                    "created_at": p.get("created_at"), "caption": p.get("caption") or None})
+    return out
+
+
+def download(url: str) -> bytes:
+    try:
+        with _client() as c:
+            r = c.get(url, follow_redirects=True)
+    except httpx.HTTPError as exc:
+        raise StravaError(f"Couldn't download the photo from Strava: {exc}") from exc
+    if r.status_code != 200:
+        raise StravaError(f"Couldn't download the photo from Strava ({r.status_code}).")
+    return r.content
+
+
 def decode_polyline(s: str) -> list[tuple[float, float]]:
     """Google's encoded polyline format (5 decimals), as used by Strava."""
     out, i, lat, lon = [], 0, 0, 0

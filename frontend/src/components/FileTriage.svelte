@@ -41,6 +41,7 @@
       <strong class="fname">{f.original_name}</strong>
       <span class="chip">{f.format.toUpperCase()} · {fmtBytes(f.size_bytes)}</span>
       {#if f.text_source === 'ocr'}<span class="chip" title="Text was read from the image with OCR">OCR</span>{/if}
+      {#if f.source === 'strava'}<span class="chip" title="Imported from Strava: only for you, not for the public site">from Strava</span>{/if}
     </div>
 
     {#if item.status === 'duplicate'}

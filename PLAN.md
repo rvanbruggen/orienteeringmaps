@@ -1,6 +1,6 @@
 # Orienteering Map Manager — Proposed Plan
 
-Status: **Phase 6.2 built (v0.7.0)**: Strava import and linking runs to maps and events. Phase 6 continues, see §10. Version compare and live GPS are not on the roadmap for now.
+Status: **Phase 6.2b built (v0.8.0)**: Strava import, linking runs to maps and events, and photos from Strava. Phase 6 continues, see §10. Version compare and live GPS are not on the roadmap for now.
 
 ## 0. Decisions so far
 
@@ -202,6 +202,7 @@ A sample of 100 activities (Jun–Oct 2026) had 11 orienteering races. They are 
 |---|---|
 | **6.1 Connect and import** ✅ v0.6.0 | Strava settings in `.env`, OAuth connect/disconnect, sync of the activity list (incremental, 200 per request), a `strava_activities` table (summary, route outline, start and bounding box), orienteering detection, and a **Runs** page to browse, filter and hide activities. |
 | **6.2 Link races** ✅ v0.7.0 | Suggest the map: the route lies on a placed map, or passes near the location of a map that isn't placed; a map named in the activity's name ranks first. Suggest the event: same day (also a date in the event's name, like "20261004 Grobbendonk"), or a permanent or multi-day event open that day. The link dialog picks or creates the map (at the middle of the route, marked "needs review"), event and course, and records your result: official time, position, number of runners, notes. Results are kept in a `participations` table apart from the Strava data, so they survive a disconnect. Shown on the map page, the Events page ("Only events I ran") and Insights (your runs per year). Walks to the start and back are no longer counted as orienteering. |
+| **6.2b Photos from Strava** ✅ v0.8.0 | The photos on an activity (often the map scan and the result card) are fetched from Strava and shown in the link dialog. Ticked photos go through the normal upload process (duplicate check, OCR, rendering) and are attached to the event's map version; a course map becomes the file of your course. Without GPS in the photo, the middle of the route is kept as its location, so placing it starts in the right spot. Strava serves photos at up to 2048 px on the long side: enough to place and read the map. Files keep `source = "strava"`, and the Publish page warns when such a file would go public (Strava's terms), suggesting you upload your own copy instead. OCR on folded, angled photos finds little, so details are still typed by hand. |
 | 6.3 Route overlay | Fetch and cache the GPS points of linked activities. Draw the route on the map page's overlay, coloured by pace, and as a guide layer in the placing editor. Also draw it on the map image itself, using the inverse of the placement transform. |
 | 6.4 Livelox extras (later) | Replay with a time slider, a manual nudge (shift/rotate) to fix the GPS–map offset, and leg splits once control positions are stored per course. |
 

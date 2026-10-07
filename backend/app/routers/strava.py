@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import models as m
+from .. import schemas as s
 from .. import runs, services, strava
 from ..db import get_session
 
@@ -46,6 +47,17 @@ class NewCourse(BaseModel):
     length_km: float | None = Field(None, ge=0)
 
 
+class PhotoWanted(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str
+    kind: str = "course"
+
+
+class PhotoImport(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    photos: list[PhotoWanted]
+
+
 class LinkIn(BaseModel):
     """Which map, event and course you ran (existing ones by id, or new ones), and your result."""
     model_config = ConfigDict(extra="forbid")
@@ -78,6 +90,7 @@ def _out(a: m.StravaActivity, link: m.Participation | None = None, suggestion: d
         "start_lat": a.start_lat, "start_lon": a.start_lon, "bbox": a.bbox,
         "orienteering": bool(a.orienteering), "orienteering_manual": bool(a.orienteering_manual),
         "strava_url": f"https://www.strava.com/activities/{a.id}",
+        "photo_count": (a.raw or {}).get("total_photo_count") or 0,
         "link": _link_out(link), "suggestion": suggestion,
     }
 
@@ -187,6 +200,28 @@ def delete_link(activity_id: int, db: Session = Depends(get_session)):
     if p:
         db.delete(p)
         db.commit()
+
+
+@router.get("/activities/{activity_id}/photos")
+def get_photos(activity_id: int, db: Session = Depends(get_session)):
+    """The photos on the activity at Strava, with the library file each was imported as."""
+    a = _activity(db, activity_id)
+    try:
+        return runs.photos(db, a)
+    except strava.StravaError as exc:
+        raise HTTPException(409, str(exc))
+
+
+@router.post("/activities/{activity_id}/photos/import")
+def import_photos(activity_id: int, data: PhotoImport, db: Session = Depends(get_session)):
+    a = _activity(db, activity_id)
+    bad = [p.kind for p in data.photos if p.kind not in s.FILE_KINDS]
+    if bad:
+        raise HTTPException(422, f"kind must be one of {s.FILE_KINDS}")
+    try:
+        return runs.import_photos(db, a, data.photos)
+    except strava.StravaError as exc:
+        raise HTTPException(409, str(exc))
 
 
 @router.patch("/activities/{activity_id}")

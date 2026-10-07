@@ -301,7 +301,7 @@
                 </button>
                 <div class="fmeta">
                   <span class="fname" title={f.original_name}>{f.original_name}</span>
-                  <span class="muted small">{f.format.toUpperCase()} · {fmtBytes(f.size_bytes)}</span>
+                  <span class="muted small">{f.format.toUpperCase()} · {fmtBytes(f.size_bytes)}{#if f.source === 'strava'} · <span class="strava-src" title="Imported from Strava: only for you, not for the public site">from Strava</span>{/if}</span>
                   <div class="row tight">
                     <select class="kind" value={f.kind} onchange={(e) => setKind(f, e.target.value)} aria-label="File type">
                       {#each meta.enums.file_kinds as k}<option value={k}>{label(k)}</option>{/each}
@@ -438,7 +438,7 @@
   .nearby { display: flex; flex-direction: column; gap: .3rem; }
   .ran { list-style: none; margin: .4rem 0 0; padding: 0; display: flex; flex-direction: column; gap: .25rem; font-size: .9rem; }
   .ran li { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem; }
-  .strava-link { color: #fc5200; }
+  .strava-link, .strava-src { color: #fc5200; }
   .notes { white-space: pre-wrap; color: var(--muted); font-size: .92rem; margin: .25rem 0 0; }
 
   .timeline { position: relative; height: 34px; margin: .75rem .5rem 0; }

@@ -19,6 +19,9 @@
   let courseSel = $state('')          // course id as string, 'new' or '' (not known)
   let newCourse = $state({ name: '', length_km: null })
   let result = $state({ time: '', position: null, competitors: null, notes: '' })
+  let photos = $state(null)           // null = loading; [] = none
+  let photoError = $state('')
+  let pick = $state({})               // photo id -> kind to import ('' = don't)
 
   const day = $derived(activity?.start_local?.slice(0, 10) ?? '')
   const choice = $derived(choices.find((c) => String(c.map_id) === mapSel))
@@ -34,8 +37,17 @@
     return { event_type, discipline }
   }
 
+  async function loadPhotos() {
+    photos = null
+    photoError = ''
+    pick = {}
+    if (!activity.photo_count) { photos = []; return }
+    try { photos = await api.get(`/api/strava/activities/${activity.id}/photos`) } catch (e) { photos = []; photoError = e.message }
+  }
+
   async function load() {
     loading = true
+    loadPhotos()
     try {
       const [res, maps] = await Promise.all([api.get(`/api/strava/activities/${activity.id}/choices`), allMaps.length ? allMaps : api.get('/api/maps')])
       choices = res.maps
@@ -110,7 +122,16 @@
     else if (courseSel) body.course_id = +courseSel
     try {
       const r = await api.put(`/api/strava/activities/${activity.id}/link`, body)
-      notify(`Linked to ${r.link.map_name}`)
+      const wanted = Object.entries(pick).filter(([, kind]) => kind).map(([id, kind]) => ({ id, kind }))
+      let added = ''
+      if (wanted.length) {
+        const res = await api.post(`/api/strava/activities/${activity.id}/photos/import`, { photos: wanted })
+        const ok = res.filter((x) => x.status !== 'error').length
+        const failed = res.filter((x) => x.status === 'error')
+        added = `, ${ok} photo${ok === 1 ? '' : 's'} added to the map`
+        if (failed.length) notify(`Photo import failed: ${failed[0].error}`, 'error')
+      }
+      notify(`Linked to ${r.link.map_name}${added}`)
       if (body.new_map) refreshMeta()
       open = false
       onsaved?.(r)
@@ -229,6 +250,40 @@
       </div>
     </section>
 
+    {#if activity?.photo_count}
+      <section>
+        <h3>Photos on Strava <span class="muted small">(tick the map scan, and the result card if you like, to add them to the map)</span></h3>
+        {#if photos === null}
+          <p class="muted small">Fetching photos…</p>
+        {:else if photoError}
+          <p class="error small">{photoError}</p>
+        {:else if !photos.length}
+          <p class="muted small">No photos found.</p>
+        {:else}
+          <div class="photos">
+            {#each photos as p (p.id)}
+              <figure class:on={!!pick[p.id] || !!p.file}>
+                <a href={p.url} target="_blank" rel="noopener" title="Open full size"><img src={p.url} alt="Photo on Strava" loading="lazy" /></a>
+                <figcaption>
+                  {#if p.file}
+                    <span class="chip ok">In library · {label(p.file.kind)}</span>
+                  {:else}
+                    <select bind:value={pick[p.id]} aria-label="Add this photo as">
+                      <option value="">Don’t add</option>
+                      <option value="course">Course map</option>
+                      <option value="map">Map (no course)</option>
+                      <option value="other">Result card / other</option>
+                    </select>
+                  {/if}
+                </figcaption>
+              </figure>
+            {/each}
+          </div>
+          <p class="hint">Strava keeps photos at up to 2048 pixels, which is enough to place the map. Photos from Strava are for you only: for the public site, upload your own copy.</p>
+        {/if}
+      </section>
+    {/if}
+
     <section>
       <h3>Your result <span class="muted small">(optional)</span></h3>
       <div class="grid-form">
@@ -264,4 +319,11 @@
   select { width: auto; }
   .cname { flex: 1 1 200px; width: auto; }
   .km { width: 6rem; }
+  .photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .6rem; margin-bottom: .4rem; }
+  figure { margin: 0; border: 2px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface-2); }
+  figure.on { border-color: var(--accent); }
+  figure img { width: 100%; height: 120px; object-fit: cover; display: block; }
+  figcaption { padding: .35rem; }
+  figcaption select { width: 100%; font-size: .85rem; }
+  .error { color: var(--danger); }
 </style>

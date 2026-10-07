@@ -139,6 +139,10 @@ class File(Base):
     exif_lon: Mapped[float | None] = mapped_column(Float)
     suggestions: Mapped[dict] = mapped_column(JSON, default=dict)
     notes: Mapped[str | None] = mapped_column(Text)
+    # Where the file came from, if not uploaded: "strava" (a photo on an activity; Strava's
+    # terms allow showing it only to you, so the Publish page warns before it goes public).
+    source: Mapped[str | None] = mapped_column(String(20))
+    source_id: Mapped[str | None] = mapped_column(String(100), index=True)  # Strava photo id
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     version: Mapped[MapVersion | None] = relationship(back_populates="files")

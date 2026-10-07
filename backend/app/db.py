@@ -95,6 +95,12 @@ MIGRATIONS: list[str] = [
     );
     CREATE INDEX ix_participations_event_id ON participations (event_id)
     """,
+    # 5 -> 6 (v0.8.0): photos imported from Strava
+    """
+    ALTER TABLE files ADD COLUMN source VARCHAR(20);
+    ALTER TABLE files ADD COLUMN source_id VARCHAR(100);
+    CREATE INDEX ix_files_source_id ON files (source_id)
+    """,
 ]
 
 

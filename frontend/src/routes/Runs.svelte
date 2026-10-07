@@ -168,6 +168,7 @@
               <span>{fmtDistance(a.distance_m)}</span>
               <span>{fmtDuration(a.moving_time_s)}</span>
               {#if a.elevation_gain_m}<span class="muted">↑{Math.round(a.elevation_gain_m)} m</span>{/if}
+              {#if a.photo_count}<span class="muted" title="{a.photo_count} photo{a.photo_count === 1 ? '' : 's'} on Strava">📷 {a.photo_count}</span>{/if}
             </span>
             <span class="linkcol">
               {#if a.link}

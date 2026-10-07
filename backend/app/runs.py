@@ -6,6 +6,7 @@ route passes close by. Maps whose name appears in the activity's name rank
 higher, which separates neighbouring maps of a multi-day event. Events on a
 map are ranked by date: same day first, then permanent courses open that day.
 """
+import io
 import math
 import re
 import unicodedata
@@ -16,6 +17,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from . import models as m
 from . import services, strava
+from .ingest import ingest_stream
 
 MIN_INSIDE = 0.15  # share of the route on a placed map to suggest it
 NEAR_M = 1500  # for a map that is not placed: the route passes this close to its location
@@ -228,3 +230,56 @@ def participations_by_activity(db: Session) -> dict[int, m.Participation]:
         selectinload(m.Participation.event).selectinload(m.Event.version).selectinload(m.MapVersion.map),
         selectinload(m.Participation.course), selectinload(m.Participation.activity))).all()
     return {p.strava_activity_id: p for p in rows}
+
+
+def photos(db: Session, a: m.StravaActivity) -> list[dict]:
+    """The activity's Strava photos, marked with the library file they were imported as (if any)."""
+    items = strava.photos(db, a.id)
+    ids = [p["id"] for p in items]
+    files = db.scalars(select(m.File).where(m.File.source == "strava", m.File.source_id.in_(ids))).all() if ids else []
+    by_id = {f.source_id: f for f in files}
+    for p in items:
+        f = by_id.get(p["id"])
+        p["file"] = {"id": f.id, "kind": f.kind, "map_id": f.version.map_id if f.version else None,
+                     "thumb_url": services.derived_url(f.pages[0].thumb_name) if f.pages else None} if f else None
+    return items
+
+
+def import_photos(db: Session, a: m.StravaActivity, wanted: list) -> list[dict]:
+    """Add Strava photos to the library, like an upload.
+
+    If the activity is linked, the files are attached to the map version of its event, and a
+    course print becomes the file of your course if that has none yet. Otherwise they go to
+    the inbox. Without GPS in the photo, the route's middle is kept as its location, so placing
+    it starts in the right spot.
+    """
+    available = {p["id"]: p for p in strava.photos(db, a.id)}
+    link = participations_by_activity(db).get(a.id)
+    centre = route_centre(a)
+    out = []
+    for n, w in enumerate(wanted, 1):
+        p = available.get(w.id)
+        if p is None:
+            raise HTTPException(404, f"Photo {w.id} is not on this activity")
+        existing = db.scalars(select(m.File).where(m.File.source == "strava", m.File.source_id == w.id)).first()
+        if existing:
+            out.append({"photo_id": w.id, "status": "already", "file_id": existing.id})
+            continue
+        name = f"{a.name} – Strava photo {n}.jpg"
+        res = ingest_stream(db, io.BytesIO(strava.download(p["url"])), name)
+        if res.status == "error":
+            out.append({"photo_id": w.id, "status": "error", "error": res.error})
+            continue
+        f = db.get(m.File, res.file.id)
+        if res.status == "created":
+            f.source, f.source_id = "strava", w.id
+            f.kind = w.kind
+            if f.exif_lat is None and centre:
+                f.exif_lat, f.exif_lon = centre
+        if link and f.map_version_id is None:
+            f.map_version_id = link.event.map_version_id
+        if link and link.course is not None and w.kind == "course" and link.course.file_id is None:
+            link.course.file_id, link.course.page_no = f.id, 1
+        db.commit()
+        out.append({"photo_id": w.id, "status": res.status, "file_id": f.id})
+    return out
