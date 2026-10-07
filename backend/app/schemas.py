@@ -145,6 +145,7 @@ class CourseOut(_Out):
     file_id: int | None
     page_no: int | None
     notes: str | None
+    control_coords: list[list[float]] | None = None  # start, controls, finish as [lat, lon]
     thumb_url: str | None = None
 
 
@@ -194,6 +195,28 @@ class EventListItem(BaseModel):
     version_label: str | None
     survey_date: str | None
     run_dates: list[str] = []  # days you ran this event
+
+
+class ControlsIn(_In):
+    """Start, controls and finish in running order, as [lat, lon]; an empty list clears them."""
+    points: list[tuple[float, float]] = Field(default_factory=list, max_length=100)
+
+    @field_validator("points")
+    @classmethod
+    def _in_range(cls, v):
+        if any(not (-90 <= lat <= 90 and -180 <= lon <= 180) for lat, lon in v):
+            raise ValueError("latitude/longitude out of range")
+        return v
+
+
+class RouteAdjust(BaseModel):
+    dx: float = Field(0, ge=-500, le=500)  # metres east
+    dy: float = Field(0, ge=-500, le=500)  # metres north
+    rot: float = Field(0, ge=-45, le=45)  # degrees clockwise, around the route's middle
+
+
+class ParticipationUpdate(_In):
+    route_adjust: RouteAdjust | None = None
 
 
 class CoursesFromFile(_In):

@@ -234,6 +234,21 @@ def import_photos(activity_id: int, data: PhotoImport, db: Session = Depends(get
         raise HTTPException(409, str(exc))
 
 
+class PhotoKind(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: str
+
+
+@router.patch("/activities/{activity_id}/photos/{photo_id}")
+def set_photo_kind(activity_id: int, photo_id: str, data: PhotoKind, db: Session = Depends(get_session)):
+    """Change the type of a photo already imported from this run (e.g. "course" or "other")."""
+    a = _activity(db, activity_id)
+    if data.kind not in s.FILE_KINDS:
+        raise HTTPException(422, f"kind must be one of {s.FILE_KINDS}")
+    f = runs.set_photo_kind(db, a, photo_id, data.kind)
+    return {"id": f.id, "kind": f.kind, "map_id": f.version.map_id if f.version else None}
+
+
 @router.patch("/activities/{activity_id}")
 def update_activity(activity_id: int, data: ActivityUpdate, db: Session = Depends(get_session)):
     a = _activity(db, activity_id)

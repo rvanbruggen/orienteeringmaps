@@ -272,6 +272,25 @@ def update_course(course_id: int, data: s.CourseIn, db: Session = Depends(get_se
     return services.course_out(c)
 
 
+@router.put("/courses/{course_id}/controls", response_model=s.CourseOut)
+def set_controls(course_id: int, data: s.ControlsIn, db: Session = Depends(get_session)):
+    """Where the start, controls and finish are, for splitting your runs of this course into legs."""
+    c = services.get_or_404(db, m.Course, course_id)
+    c.control_coords = [[round(lat, 7), round(lon, 7)] for lat, lon in data.points] or None
+    db.commit()
+    return services.course_out(c)
+
+
+@router.patch("/participations/{participation_id}")
+def update_participation(participation_id: int, data: s.ParticipationUpdate, db: Session = Depends(get_session)):
+    """Save the correction that lines your GPS route up with the map (or clear it with null)."""
+    p = services.get_or_404(db, m.Participation, participation_id)
+    adj = data.route_adjust
+    p.route_adjust = adj.model_dump() if adj and (adj.dx or adj.dy or adj.rot) else None
+    db.commit()
+    return services.participation_out(p)
+
+
 @router.delete("/courses/{course_id}", status_code=204)
 def delete_course(course_id: int, db: Session = Depends(get_session)):
     db.delete(services.get_or_404(db, m.Course, course_id))

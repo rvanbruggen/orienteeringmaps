@@ -64,7 +64,7 @@ def participation_out(p: m.Participation) -> dict:
     return {
         "id": p.id, "event_id": p.event_id, "course_id": p.course_id, "strava_activity_id": p.strava_activity_id,
         "date": p.date, "result_time_s": p.result_time_s, "position": p.position, "competitors": p.competitors,
-        "notes": p.notes, "course_name": p.course.name if p.course else None,
+        "notes": p.notes, "course_name": p.course.name if p.course else None, "route_adjust": p.route_adjust,
         "strava": {"name": a.name, "distance_m": a.distance_m, "moving_time_s": a.moving_time_s,
                    "elapsed_time_s": a.elapsed_time_s, "url": f"https://www.strava.com/activities/{a.id}"} if a else None,
     }

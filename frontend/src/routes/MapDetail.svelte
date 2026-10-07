@@ -55,7 +55,11 @@
   // Your runs with a GPS track on this map, newest first (for the route on the overlay).
   const myRuns = $derived(map ? map.versions.flatMap((v) => v.events.flatMap((e) => (e.participations ?? [])
     .filter((p) => p.strava_activity_id)
-    .map((p) => ({ activity_id: p.strava_activity_id, date: p.date, event_name: e.name, course_name: p.course_name, result_time_s: p.result_time_s }))))
+    .map((p) => ({
+      activity_id: p.strava_activity_id, participation_id: p.id, date: p.date, event_name: e.name,
+      course_id: p.course_id, course_name: p.course_name, result_time_s: p.result_time_s, route_adjust: p.route_adjust,
+      controls: e.courses.find((c) => c.id === p.course_id)?.control_coords ?? null,
+    }))))
     .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '')) : [])
   const overlays = $derived(map ? map.versions.flatMap((v) => v.files.flatMap((f) => f.pages.filter((p) => p.georef).map((p) => ({
     key: p.id, page_id: p.id, image_url: p.image_url, width: p.width, height: p.height,

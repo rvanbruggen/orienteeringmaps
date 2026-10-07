@@ -398,3 +398,72 @@ def test_placing_a_strava_photo_offers_its_run(client, fake):
     page_id = client.get(f"/api/files/{fid}").json()["file"]["pages"][0]["id"]
     ctx = client.get(f"/api/pages/{page_id}/georef").json()
     assert [r["activity_id"] for r in ctx["runs"]] == [1001]
+
+
+def test_controls_and_route_adjust(client, fake):
+    mp, route = _placed_map(client)
+    fake.activities = [_activity(1, "HITTA Leuven", day=19, map={"summary_polyline": _encode(route)})]
+    _connect(client)
+    client.post("/api/strava/sync", json={})
+    ev = client.get("/api/strava/activities/1001/choices").json()["maps"][0]["events"][0]
+    kort = ev["courses"][0]
+    link = client.put("/api/strava/activities/1001/link", json={
+        "map_id": mp["id"], "event_id": ev["id"], "course_id": kort["id"]}).json()["link"]
+
+    pts = [[50.876, 4.704], [50.877, 4.705], [50.8761234567, 4.7051234567]]
+    r = client.put(f"/api/courses/{kort['id']}/controls", json={"points": pts})
+    assert r.status_code == 200 and r.json()["control_coords"][2] == [50.8761235, 4.7051235]
+    assert client.put(f"/api/courses/{kort['id']}/controls", json={"points": [[91, 0]]}).status_code == 422
+
+    r = client.patch(f"/api/participations/{link['id']}", json={"route_adjust": {"dx": 3.5, "dy": -2, "rot": 1}})
+    assert r.json()["route_adjust"] == {"dx": 3.5, "dy": -2, "rot": 1}
+    assert client.patch(f"/api/participations/{link['id']}", json={"route_adjust": {"dx": 900}}).status_code == 422
+
+    detail = client.get(f"/api/maps/{mp['id']}").json()
+    e = detail["versions"][0]["events"][0]
+    assert e["courses"][0]["control_coords"][0] == [50.876, 4.704]
+    assert e["participations"][0]["route_adjust"]["dx"] == 3.5
+
+    # A zero correction, or none, clears it; an empty list clears the controls.
+    assert client.patch(f"/api/participations/{link['id']}", json={"route_adjust": {"dx": 0}}).json()["route_adjust"] is None
+    assert client.put(f"/api/courses/{kort['id']}/controls", json={"points": []}).json()["control_coords"] is None
+
+
+def test_change_photo_kind_keeps_course_file_in_step(client, fake):
+    mp, route = _placed_map(client)
+    fake.activities = [_activity(1, "HITTA Leuven", day=19, total_photo_count=2, map={"summary_polyline": _encode(route)})]
+    _connect(client)
+    client.post("/api/strava/sync", json={})
+    ev = client.get("/api/strava/activities/1001/choices").json()["maps"][0]["events"][0]
+    lang = ev["courses"][1]
+    # Linked without a course; photo 1 imported as "other" by mistake, photo 2 as course map.
+    client.put("/api/strava/activities/1001/link", json={"map_id": mp["id"], "event_id": ev["id"]})
+    r = client.post("/api/strava/activities/1001/photos/import", json={"photos": [
+        {"id": "1001-1", "kind": "other"}, {"id": "1001-2", "kind": "course"}]}).json()
+    f1, f2 = r[0]["file_id"], r[1]["file_id"]
+    course = lambda: next(c for c in client.get(f"/api/maps/{mp['id']}").json()["versions"][0]["events"][0]["courses"]  # noqa: E731
+                          if c["id"] == lang["id"])
+    assert course()["file_id"] is None  # no course chosen yet
+
+    # Choosing the course later attaches the course map photo of this run.
+    client.put("/api/strava/activities/1001/link", json={"map_id": mp["id"], "event_id": ev["id"], "course_id": lang["id"]})
+    assert course()["file_id"] == f2
+
+    # Fix the mistake: photo 1 is the course map, photo 2 the result card.
+    r = client.patch("/api/strava/activities/1001/photos/1001-1", json={"kind": "course"})
+    assert r.status_code == 200 and r.json()["kind"] == "course"
+    assert course()["file_id"] == f2  # the course already has a course map
+    client.patch("/api/strava/activities/1001/photos/1001-2", json={"kind": "other"})
+    assert course()["file_id"] == f1  # the other course map photo takes over
+    client.patch("/api/strava/activities/1001/photos/1001-1", json={"kind": "other"})
+    assert course()["file_id"] is None
+
+    # A photo that went back to the inbox (its map was deleted and made again) comes back to the map.
+    client.patch(f"/api/files/{f1}", json={"map_version_id": None})
+    client.patch("/api/strava/activities/1001/photos/1001-1", json={"kind": "other"})
+    assert client.get(f"/api/files/{f1}").json()["file"]["map_id"] == mp["id"]
+
+    assert client.patch("/api/strava/activities/1001/photos/1001-1", json={"kind": "selfie"}).status_code == 422
+    assert client.patch("/api/strava/activities/1001/photos/nope", json={"kind": "other"}).status_code == 404
+    kinds = {p["id"]: p["file"]["kind"] for p in client.get("/api/strava/activities/1001/photos").json()}
+    assert kinds == {"1001-1": "other", "1001-2": "other"}

@@ -114,6 +114,9 @@ class Course(Base):
     file_id: Mapped[int | None] = mapped_column(ForeignKey("files.id", ondelete="SET NULL"))
     page_no: Mapped[int | None] = mapped_column(Integer)  # 1-based
     notes: Mapped[str | None] = mapped_column(Text)
+    # Where the start, controls and finish are, in order: [[lat, lon], ...]. Set by clicking them on
+    # the placed map; used to split your runs of this course into legs.
+    control_coords: Mapped[list | None] = mapped_column(JSON)
 
     event: Mapped[Event] = relationship(back_populates="courses")
     file: Mapped["File | None"] = relationship()
@@ -256,6 +259,8 @@ class Participation(Base):
     position: Mapped[int | None] = mapped_column(Integer)
     competitors: Mapped[int | None] = mapped_column(Integer)
     notes: Mapped[str | None] = mapped_column(Text)
+    # Correction for a GPS offset against the map: {"dx": m east, "dy": m north, "rot": degrees clockwise}.
+    route_adjust: Mapped[dict | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     event: Mapped[Event] = relationship(back_populates="participations")

@@ -218,6 +218,11 @@ def link(db: Session, a: m.StravaActivity, data) -> m.Participation:
     p.result_time_s, p.position, p.competitors = data.result_time_s, data.position, data.competitors
     p.notes = data.notes or None
     db.add(p)
+    # A course map photo of this run, imported before the course was chosen, becomes the course's file.
+    if course is not None and course.file_id is None:
+        photo = next((f for f in run_files(db, a) if f.kind == "course"), None)
+        if photo is not None:
+            course.file_id, course.page_no = photo.id, 1
     # A linked activity is an orienteering run, whatever a later sync thinks of its name.
     a.orienteering, a.orienteering_manual = 1, 1
     db.commit()
@@ -261,6 +266,11 @@ def photos(db: Session, a: m.StravaActivity) -> list[dict]:
     ids = [p["id"] for p in items]
     files = db.scalars(select(m.File).where(m.File.source == "strava", m.File.source_id.in_(ids))).all() if ids else []
     by_id = {f.source_id: f for f in files}
+    for f in files:  # imported before files remembered their run
+        if (f.suggestions or {}).get("strava_activity_id") != a.id:
+            f.suggestions = (f.suggestions or {}) | {"strava_activity_id": a.id}
+    if files:
+        db.commit()
     for p in items:
         f = by_id.get(p["id"])
         p["file"] = {"id": f.id, "kind": f.kind, "map_id": f.version.map_id if f.version else None,
@@ -301,10 +311,44 @@ def import_photos(db: Session, a: m.StravaActivity, wanted: list) -> list[dict]:
             f.suggestions = (f.suggestions or {}) | {"strava_activity_id": a.id}
             if f.exif_lat is None and centre:
                 f.exif_lat, f.exif_lon = centre
-        if link and f.map_version_id is None:
-            f.map_version_id = link.event.map_version_id
-        if link and link.course is not None and w.kind == "course" and link.course.file_id is None:
-            link.course.file_id, link.course.page_no = f.id, 1
+        place_file(link, f)
         db.commit()
         out.append({"photo_id": w.id, "status": res.status, "file_id": f.id})
     return out
+
+
+def run_files(db: Session, a: m.StravaActivity) -> list[m.File]:
+    """Library files imported from this run's Strava photos, oldest first."""
+    files = db.scalars(select(m.File).where(m.File.source == "strava").order_by(m.File.id)).all()
+    return [f for f in files if (f.suggestions or {}).get("strava_activity_id") == a.id]
+
+
+def place_file(link: m.Participation | None, f: m.File) -> None:
+    """Put a run's photo where it belongs: on the map of the linked event (if it is in the inbox),
+    and as the file of your course if it is a course map and the course has none yet."""
+    if link is None:
+        return
+    if f.map_version_id is None:
+        f.map_version_id = link.event.map_version_id
+    if link.course is not None and f.kind == "course" and link.course.file_id is None:
+        link.course.file_id, link.course.page_no = f.id, 1
+
+
+def set_photo_kind(db: Session, a: m.StravaActivity, photo_id: str, kind: str) -> m.File:
+    """Change what an imported photo is (course map, map, result card / other), and keep the
+    course's file in step: a photo that is no longer a course map stops being the course's file,
+    and another course map photo of the same run takes its place."""
+    f = db.scalars(select(m.File).where(m.File.source == "strava", m.File.source_id == photo_id)).first()
+    if f is None:
+        raise HTTPException(404, "That photo is not in the library")
+    f.kind = kind
+    f.suggestions = (f.suggestions or {}) | {"strava_activity_id": a.id}
+    link = participations_by_activity(db).get(a.id)
+    course = link.course if link else None
+    if course is not None and course.file_id == f.id and kind != "course":
+        other = next((x for x in run_files(db, a) if x.kind == "course" and x.id != f.id), None)
+        course.file_id, course.page_no = (other.id, 1) if other else (None, None)
+    place_file(link, f)
+    db.commit()
+    db.refresh(f)
+    return f

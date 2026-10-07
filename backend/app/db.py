@@ -105,6 +105,11 @@ MIGRATIONS: list[str] = [
     """
     ALTER TABLE strava_activities ADD COLUMN streams JSON
     """,
+    # 7 -> 8 (v0.10.0): control positions and route corrections
+    """
+    ALTER TABLE courses ADD COLUMN control_coords JSON;
+    ALTER TABLE participations ADD COLUMN route_adjust JSON
+    """,
 ]
 
 

@@ -154,6 +154,20 @@
   }
 
   const fitLabel = { same_day: 'same day', open: 'open that day' }
+  const PHOTO_KINDS = [
+    { value: 'course', label: 'Course map' },
+    { value: 'map', label: 'Map (no course)' },
+    { value: 'other', label: 'Result card / other' },
+  ]
+
+  // Change the type of a photo that is already in the library; saved straight away.
+  async function setKind(p, kind) {
+    try {
+      const res = await api.patch(`/api/strava/activities/${activity.id}/photos/${p.id}`, { kind })
+      p.file = { ...p.file, kind: res.kind, map_id: res.map_id }
+      notify(`Photo saved as ${PHOTO_KINDS.find((k) => k.value === kind)?.label.toLowerCase() ?? kind}`)
+    } catch (e) { notify(e.message, 'error') }
+  }
   const scoreText = (sc) => !sc ? '' : sc.inside ? `${Math.round(sc.inside * 100)}% of your route is on this map` : `${sc.distance_m} m from the map’s location`
   const otherMaps = $derived(allMaps.filter((mp) => !choices.some((c) => c.map_id === mp.id)).sort((a, b) => a.name.localeCompare(b.name)))
 </script>
@@ -255,7 +269,7 @@
 
     {#if activity?.photo_count}
       <section>
-        <h3>Photos on Strava <span class="muted small">(tick the map scan, and the result card if you like, to add them to the map)</span></h3>
+        <h3>Photos on Strava <span class="muted small">(choose what each photo is to add it to the map; for photos already in the library, changing the type saves straight away)</span></h3>
         {#if photos === null}
           <p class="muted small">Fetching photos…</p>
         {:else if photoError}
@@ -269,7 +283,11 @@
                 <a href={p.url} target="_blank" rel="noopener" title="Open full size"><img src={p.url} alt="Attached to the run on Strava" loading="lazy" /></a>
                 <figcaption>
                   {#if p.file}
-                    <span class="chip ok">In library · {label(p.file.kind)}</span>
+                    <select value={p.file.kind} onchange={(e) => setKind(p, e.target.value)} aria-label="Type of this photo in the library" disabled={busy}>
+                      {#each PHOTO_KINDS as k}<option value={k.value}>{k.label}</option>{/each}
+                      {#if !PHOTO_KINDS.some((k) => k.value === p.file.kind)}<option value={p.file.kind}>{label(p.file.kind)}</option>{/if}
+                    </select>
+                    <span class="small in-lib">✓ In library{p.file.map_id ? '' : ' (Inbox)'}</span>
                   {:else}
                     <select bind:value={pick[p.id]} aria-label="Add this photo as">
                       <option value="">Don’t add</option>
@@ -328,5 +346,6 @@
   figure img { width: 100%; height: 120px; object-fit: cover; display: block; }
   figcaption { padding: .35rem; }
   figcaption select { width: 100%; font-size: .85rem; }
+  .in-lib { display: block; margin-top: .2rem; color: var(--ok); }
   .error { color: var(--danger); }
 </style>
