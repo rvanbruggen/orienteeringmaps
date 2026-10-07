@@ -55,5 +55,5 @@ export const pick = (obj, keys) => Object.fromEntries(keys.filter((k) => k in ob
 
 export const MAP_KEYS = ['name', 'location', 'lat', 'lon', 'map_type', 'club_id', 'tags', 'notes', 'needs_review', 'publish_level', 'public_note']
 export const VERSION_KEYS = ['label', 'survey_date', 'cartographer', 'scale', 'contour_interval', 'standard', 'notes']
-export const EVENT_KEYS = ['name', 'date', 'end_date', 'event_type', 'discipline', 'organiser_club_id', 'results_url', 'notes']
+export const EVENT_KEYS = ['name', 'date', 'end_date', 'event_type', 'discipline', 'organiser_club_id', 'results_url', 'notes', 'map_version_id']
 export const COURSE_KEYS = ['name', 'length_km', 'climb_m', 'scale', 'controls', 'file_id', 'page_no', 'notes']

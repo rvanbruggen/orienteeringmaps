@@ -1,6 +1,6 @@
 # Orienteering Map Manager — Proposed Plan
 
-Status: **Phase 6 built (v0.10.2)**: Strava import, linking runs to maps and events, photos from Strava, your route on the map, replay and leg splits (§10). Version compare and live GPS are not on the roadmap for now.
+Status: **Phase 6 built (v0.10.3)**: Strava import, linking runs to maps and events, photos from Strava, your route on the map, replay and leg splits (§10). Version compare and live GPS are not on the roadmap for now.
 
 ## 0. Decisions so far
 

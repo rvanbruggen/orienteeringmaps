@@ -160,6 +160,8 @@ class EventIn(_In):
     organiser_club_id: int | None = None
     results_url: str | None = None
     notes: str | None = None
+    # Only when editing: move the event (with its courses and your runs) to another version of the same map.
+    map_version_id: int | None = None
 
 
 class EventOut(_Out):

@@ -39,6 +39,7 @@ class NewEvent(BaseModel):
     date: str | None = Field(None, pattern=r"^\d{4}(-\d{2}(-\d{2})?)?$")
     event_type: str | None = None
     discipline: str | None = None
+    version_id: int | None = None  # which version of the map; default: the one in use on the day
 
 
 class NewCourse(BaseModel):

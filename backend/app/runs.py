@@ -161,8 +161,11 @@ def map_choice(mp: m.Map, a: m.StravaActivity, sc: dict | None) -> dict:
     rank = {"same_day": 0, "open": 1, None: 2}
     events.sort(key=lambda e: (rank[e["fit"]], -(int((e["date"] or "0")[:4]))))
     v = version_on(mp, day)
+    versions = [{"id": x.id, "label": x.label, "survey_date": x.survey_date, "scale": x.scale,
+                 "contour_interval": x.contour_interval}
+                for x in sorted(mp.versions, key=lambda x: (x.survey_date or "", x.id), reverse=True)]
     return {"map_id": mp.id, "name": mp.name, "location": mp.location, "score": sc, "events": events,
-            "version_id": v.id if v else None}
+            "version_id": v.id if v else None, "versions": versions}
 
 
 def link(db: Session, a: m.StravaActivity, data) -> m.Participation:
@@ -187,7 +190,12 @@ def link(db: Session, a: m.StravaActivity, data) -> m.Participation:
         if not ev or ev.version.map_id != mp.id:
             raise HTTPException(422, "That event is not on this map")
     elif data.new_event and data.new_event.name:
-        v = version_on(mp, day)
+        if data.new_event.version_id:
+            v = next((x for x in mp.versions if x.id == data.new_event.version_id), None)
+            if v is None:
+                raise HTTPException(422, "That version is not on this map")
+        else:
+            v = version_on(mp, day)
         if v is None:
             v = m.MapVersion(map_id=mp.id)
             db.add(v)

@@ -2,11 +2,11 @@
 
 A personal library for orienteering maps: upload PDFs and images, record each map's versions (survey dates), events and courses, place maps on top of aerial photos, and find maps again in a table or on a map. See [PLAN.md](PLAN.md) for the roadmap.
 
-## Features (v0.10.2)
+## Features (v0.10.3)
 
 - **Upload** PDFs and images (PNG, JPG, TIFF, WebP, HEIC). Originals are stored unchanged, pages are rendered, and duplicates are detected: exact copies by hash, look-alikes by perceptual hash.
 - **Pre-filled details**: scale, contour interval, survey date, cartographer, club and course length are read from the PDF text, or from OCR for images. GPS coordinates are read from phone photos.
-- **Data model**: Map → Versions (survey dates, scale, contours) → Events (race dates) → Courses (each pointing at a file, or at one page of a multi-page PDF).
+- **Data model**: Map → Versions (survey dates, scale, contours) → Events (race dates) → Courses (each pointing at a file, or at one page of a multi-page PDF). A map printed at two scales (say 1:5 000 / 2 m and 1:10 000 / 2.5 m) is one map with two versions; an event can be moved to another version from its Edit form, and the link dialog lets you pick the version for a new event.
 - **Library**: sortable and filterable table or card view, CSV export. Tick several maps (shift-click selects a range) to set their club, type or public-site level in one go, add or remove a tag, or mark them reviewed.
 - **Inbox** for files not yet attached to a map.
 - **Bulk import** of a folder. Course pairs like `…-Kort.pdf` / `…-Lang.pdf` are grouped into one map.

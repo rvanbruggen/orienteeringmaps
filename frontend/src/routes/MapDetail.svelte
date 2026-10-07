@@ -354,7 +354,7 @@
         {#each v.events as ev (ev.id)}
           <div class="event">
             {#if edit?.kind === 'event' && edit.data.id === ev.id}
-              <EventFields bind:event={edit.data} prefix="ee{ev.id}" />
+              <EventFields bind:event={edit.data} prefix="ee{ev.id}" versions={map.versions} />
               <div class="row end"><button onclick={() => (edit = null)}>Cancel</button><button class="primary" onclick={saveEdit} disabled={!editValid || busy}>Save</button></div>
             {:else}
               <div class="row">

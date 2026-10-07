@@ -1,11 +1,19 @@
 <script>
   import { meta } from '../lib/stores.svelte.js'
-  import { isPartialDate, label } from '../lib/format.js'
+  import { isPartialDate, label, versionName } from '../lib/format.js'
   import ClubSelect from './ClubSelect.svelte'
-  let { event = $bindable(), prefix = 'e' } = $props()
+  // versions: the map's versions, to move an existing event (with its courses and runs) to another one.
+  let { event = $bindable(), prefix = 'e', versions = [] } = $props()
 </script>
 
 <div class="grid-form">
+  {#if event.id && versions.length > 1}
+    <label class="field wide"><span>Version <span class="hint">(moves the event with its courses and your runs)</span></span>
+      <select bind:value={event.map_version_id}>
+        {#each versions as v (v.id)}<option value={v.id}>{versionName(v)}</option>{/each}
+      </select>
+    </label>
+  {/if}
   <label class="field wide"><span>Event name *</span><input bind:value={event.name} required /></label>
   <label class="field"><span>Date</span>
     <input bind:value={event.date} placeholder="2024-10-06" class:invalid={!isPartialDate(event.date)} />

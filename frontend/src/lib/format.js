@@ -39,6 +39,12 @@ export function yearsAgo(d) {
   return (Date.now() - then.getTime()) / (365.25 * 24 * 3600 * 1000)
 }
 
+/** "HITTA · 1:5 000 · 2 m", "Survey May 2021 · 1:10 000" or "Undated version" */
+export function versionName(v) {
+  const name = v.label || (v.survey_date ? `Survey ${fmtDate(v.survey_date)}` : 'Undated version')
+  return [name, fmtScale(v.scale), fmtContour(v.contour_interval)].filter(Boolean).join(' · ')
+}
+
 export const label = (s) => (s ? s.replaceAll('_', ' ').replace(/^./, (c) => c.toUpperCase()) : '')
 
 /** Partial ISO date validation, same rule as the backend. */

@@ -506,3 +506,42 @@ def test_map_picture_prefers_the_map_over_the_result_card_and_can_be_chosen(clie
     assert client.get(f"/api/maps/{mp['id']}").json()["cover_file_id"] == map_photo
     r = client.put(f"/api/maps/{mp['id']}/cover", json={"file_id": None}).json()
     assert r["cover_file_id"] == map_photo and not r["cover_chosen"]
+
+
+def test_two_versions_move_event_and_link_to_chosen_version(client, fake):
+    """Kattenbos: one map, a 1:5 000 / 2 m version and a 1:10 000 / 2.5 m version."""
+    fake.activities = [_activity(1, "Sylvester Orienteering, day 5 - Kattenbos", day=30)]
+    _connect(client)
+    client.post("/api/strava/sync", json={})
+    mp = client.post("/api/maps", json={"name": "Kattenbos", "lat": 37.1, "lon": -122.5,
+                                        "version": {"label": "HITTA", "scale": 5000, "contour_interval": 2},
+                                        "event": {"name": "HITTA Kattenbos", "event_type": "permanent"}}).json()
+    v5 = mp["versions"][0]["id"]
+    v10 = client.post(f"/api/maps/{mp['id']}/versions", json={"label": "Forest", "scale": 10000,
+                                                               "contour_interval": 2.5}).json()["id"]
+    other_map = client.post("/api/maps", json={"name": "Elsewhere"}).json()
+
+    # The link dialog offers both versions and creates the new event on the one you choose.
+    choice = client.get(f"/api/strava/activities/1001/choices?map_id={mp['id']}").json()["maps"][-1]
+    assert {v["id"] for v in choice["versions"]} == {v5, v10}
+    r = client.put("/api/strava/activities/1001/link", json={
+        "map_id": mp["id"], "new_event": {"name": "Sylvester day 5", "version_id": v10}, "new_course": {"name": "H50"}})
+    assert r.status_code == 200, r.text
+    detail = client.get(f"/api/maps/{mp['id']}").json()
+    by_v = {v["id"]: [e["name"] for e in v["events"]] for v in detail["versions"]}
+    assert by_v == {v5: ["HITTA Kattenbos"], v10: ["Sylvester day 5"]}
+    bad = client.put("/api/strava/activities/1001/link", json={
+        "map_id": mp["id"], "new_event": {"name": "x", "version_id": other_map["versions"][0]["id"]}})
+    assert bad.status_code == 422
+
+    # Move the race (with its course and your run) to the other version, and back.
+    ev = next(e for v in detail["versions"] for e in v["events"] if e["name"] == "Sylvester day 5")
+    r = client.patch(f"/api/events/{ev['id']}", json={"map_version_id": v5})
+    assert r.status_code == 200 and r.json()["map_version_id"] == v5
+    moved = next(e for e in next(v for v in client.get(f"/api/maps/{mp['id']}").json()["versions"]
+                                 if v["id"] == v5)["events"] if e["id"] == ev["id"])
+    assert [c["name"] for c in moved["courses"]] == ["H50"] and len(moved["participations"]) == 1
+    assert client.patch(f"/api/events/{ev['id']}", json={"map_version_id": other_map["versions"][0]["id"]}).status_code == 422
+    assert client.patch(f"/api/events/{ev['id']}", json={"map_version_id": None}).status_code == 422
+    # Editing other fields leaves the version alone.
+    assert client.patch(f"/api/events/{ev['id']}", json={"name": "Sylvester 5"}).json()["map_version_id"] == v5

@@ -5,7 +5,7 @@
   import Modal from './Modal.svelte'
   import { api } from '../lib/api.js'
   import { meta, notify, refreshMeta } from '../lib/stores.svelte.js'
-  import { fmtDate, fmtDistance, fmtDuration, label } from '../lib/format.js'
+  import { fmtDate, fmtDistance, fmtDuration, label, versionName } from '../lib/format.js'
 
   let { activity, open = $bindable(false), onsaved } = $props()
 
@@ -66,13 +66,16 @@
         pickEvent(mapSel)
         result = { time: '', position: null, competitors: null, notes: '' }
       }
+      if (newEvent.version_id == null) newEvent.version_id = choice?.version_id ?? null
     } catch (e) { notify(e.message, 'error') }
     loading = false
   }
 
   // Preselect the event that fits the date, if there is exactly one good candidate.
   function pickEvent(mapId) {
-    const evs = choices.find((c) => String(c.map_id) === String(mapId))?.events ?? []
+    const c = choices.find((x) => String(x.map_id) === String(mapId))
+    newEvent.version_id = c?.version_id ?? null // the version in use on the day; you can pick another
+    const evs = c?.events ?? []
     const same = evs.filter((e) => e.fit === 'same_day')
     // A permanent course is "open" every day, so only pick it when the run's name says so;
     // a race in a town with a HITTA map is not a HITTA run.
@@ -119,7 +122,10 @@
     }
     if (mapSel === 'new') body.new_map = { name: newMap.name, location: newMap.location || null, map_type: newMap.map_type }
     else body.map_id = +mapSel
-    if (eventSel === 'new') body.new_event = { name: newEvent.name, date: newEvent.date || null, event_type: newEvent.event_type, discipline: newEvent.discipline }
+    if (eventSel === 'new') body.new_event = {
+      name: newEvent.name, date: newEvent.date || null, event_type: newEvent.event_type, discipline: newEvent.discipline,
+      version_id: mapSel !== 'new' && choice?.versions?.length > 1 ? newEvent.version_id : null,
+    }
     else body.event_id = +eventSel
     if (courseSel === 'new') body.new_course = { name: newCourse.name, length_km: newCourse.length_km || null }
     else if (courseSel) body.course_id = +courseSel
@@ -227,6 +233,7 @@
             {#if e.date}<span class="muted">{fmtDate(e.date)}{e.end_date ? ` – ${fmtDate(e.end_date)}` : ''}</span>{/if}
             {#if e.event_type}<span class="chip">{label(e.event_type)}</span>{/if}
             {#if e.fit}<span class="chip ok">{fitLabel[e.fit]}</span>{/if}
+            {#if choice.versions?.length > 1}<span class="muted small">· {versionName(choice.versions.find((v) => v.id === e.version_id) ?? {})}</span>{/if}
           </span>
         </label>
       {/each}
@@ -237,6 +244,13 @@
       {#if eventSel === 'new'}
         <div class="grid-form sub">
           <label class="field wide"><span>Event name *</span><input bind:value={newEvent.name} /></label>
+          {#if mapSel !== 'new' && choice?.versions?.length > 1}
+            <label class="field wide"><span>Version of the map <span class="hint">(scale and contours of the map you ran on)</span></span>
+              <select bind:value={newEvent.version_id}>
+                {#each choice.versions as v (v.id)}<option value={v.id}>{versionName(v)}</option>{/each}
+              </select>
+            </label>
+          {/if}
           <label class="field"><span>Date</span><input bind:value={newEvent.date} placeholder="2026-10-04" /></label>
           <label class="field"><span>Type</span>
             <select bind:value={newEvent.event_type}>

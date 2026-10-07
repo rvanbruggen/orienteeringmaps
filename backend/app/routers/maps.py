@@ -67,7 +67,7 @@ def create_map(data: s.MapCreate, db: Session = Depends(get_session)):
         f = services.get_or_404(db, m.File, fid)
         f.map_version_id = version.id
     if data.event or data.courses:
-        ev_data = data.event.model_dump() if data.event else {}
+        ev_data = data.event.model_dump(exclude={"map_version_id"}) if data.event else {}
         ev_data["name"] = ev_data.get("name") or data.name
         _check_club(db, ev_data.get("organiser_club_id"))
         ev = m.Event(map_version_id=version.id, **ev_data)
@@ -220,7 +220,7 @@ def create_event(version_id: int, data: s.EventIn, db: Session = Depends(get_ses
     if not data.name:
         raise HTTPException(422, "name is required")
     _check_club(db, data.organiser_club_id)
-    ev = m.Event(map_version_id=version_id, **data.model_dump())
+    ev = m.Event(map_version_id=version_id, **data.model_dump(exclude={"map_version_id"}))
     db.add(ev)
     db.commit()
     return services.event_out(ev)
@@ -230,7 +230,11 @@ def create_event(version_id: int, data: s.EventIn, db: Session = Depends(get_ses
 def update_event(event_id: int, data: s.EventIn, db: Session = Depends(get_session)):
     ev = services.get_or_404(db, m.Event, event_id)
     _check_club(db, data.organiser_club_id)
-    _apply(ev, data, required=("name",))
+    if "map_version_id" in data.model_fields_set:
+        target = db.get(m.MapVersion, data.map_version_id) if data.map_version_id else None
+        if target is None or target.map_id != ev.version.map_id:
+            raise HTTPException(422, "Choose a version of the same map")
+    _apply(ev, data, required=("name", "map_version_id"))
     db.commit()
     return services.event_out(ev)
 
