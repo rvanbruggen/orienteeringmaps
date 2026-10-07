@@ -36,6 +36,8 @@ ORIENTEERING_RE = re.compile(
     r"orient|oriënt|course d.orientation|\bo-?(loop|lopen|sprint|race|training)\b|\bOL\b|\bhitta\b|mapico|postenloop",
     re.IGNORECASE,
 )
+# ...but not the walk or jog to the start and back.
+NOT_A_RACE_RE = re.compile(r"\bto the start\b|\bback (to|from)\b|\bfrom the finish\b|warm.?up", re.IGNORECASE)
 
 
 class StravaError(Exception):
@@ -213,7 +215,8 @@ def decode_polyline(s: str) -> list[tuple[float, float]]:
 def looks_like_orienteering(a: dict) -> bool:
     if a.get("sport_type") not in FOOT_SPORTS or a.get("commute"):
         return False
-    return bool(ORIENTEERING_RE.search(a.get("name") or ""))
+    name = a.get("name") or ""
+    return bool(ORIENTEERING_RE.search(name)) and not NOT_A_RACE_RE.search(name)
 
 
 def _parse_time(s: str) -> datetime:
@@ -248,6 +251,14 @@ def upsert(db: Session, a: dict) -> bool:
     row.raw = a
     db.add(row)
     return new
+
+
+def reclassify(db: Session) -> None:
+    """Apply the current orienteering rules to every activity you haven't marked yourself."""
+    rows = db.scalars(select(m.StravaActivity).where(m.StravaActivity.orienteering_manual == 0)).all()
+    for row in rows:
+        row.orienteering = int(looks_like_orienteering(row.raw or {"name": row.name, "sport_type": row.sport_type}))
+    db.commit()
 
 
 def sync(db: Session, full: bool = False, cursor: dict | None = None) -> dict:
@@ -286,6 +297,8 @@ def sync(db: Session, full: bool = False, cursor: dict | None = None) -> dict:
                 nxt = None
                 break
             nxt = {"after": after, "page": page}
+        if nxt is None:
+            reclassify(db)
         conn = connection(db) or {}
         if nxt is None:
             conn["last_sync"] = datetime.now(timezone.utc).isoformat()

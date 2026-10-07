@@ -162,3 +162,133 @@ def test_polyline_and_detection():
     assert all(strava.looks_like_orienteering({"name": n, "sport_type": "Run"}) for n in yes)
     assert not any(strava.looks_like_orienteering({"name": n, "sport_type": "Run"}) for n in no)
     assert not strava.looks_like_orienteering({"name": "Orienteering", "sport_type": "Ride"})
+
+
+# --- step 2: linking runs to maps and events -------------------------------------
+
+def _encode(points):
+    """Google encoded polyline, the inverse of strava.decode_polyline."""
+    out, plat, plon = [], 0, 0
+    for lat, lon in points:
+        ilat, ilon = round(lat * 1e5), round(lon * 1e5)
+        for v in (ilat - plat, ilon - plon):
+            v = ~(v << 1) if v < 0 else v << 1
+            while v >= 0x20:
+                out.append(chr((0x20 | (v & 0x1F)) + 63))
+                v >>= 5
+            out.append(chr(v + 63))
+        plat, plon = ilat, ilon
+    return "".join(out)
+
+
+def _placed_map(client):
+    """A map placed near Leuven with a dated race and a permanent course; returns (map, route on it)."""
+    from tests.conftest import make_pdf
+    from tests.test_api import upload
+    from tests.test_georef import synth
+    f = upload(client, "park.pdf", make_pdf("Schaal 1/5.000"))["file"]
+    mp = client.post("/api/maps", json={
+        "name": "Arenbergpark", "location": "Leuven", "file_ids": [f["id"]],
+        "version": {"survey_date": "2021-05"},
+        "event": {"name": "HITTA Leuven", "event_type": "permanent"},
+        "courses": [{"name": "Kort"}, {"name": "Lang"}],
+    }).json()
+    page = f["pages"][0]
+    w, h = page["width"], page["height"]
+    client.put(f"/api/pages/{page['id']}/georef",
+               json={"points": synth([(50, 60), (w - 40, 80), (w - 60, h - 50), (70, h - 90)])})
+    mp = client.get(f"/api/maps/{mp['id']}").json()
+    lat = sum(p[0] for p in mp["footprint"]) / len(mp["footprint"])
+    lon = sum(p[1] for p in mp["footprint"]) / len(mp["footprint"])
+    route = [(lat + d, lon + d) for d in (-0.0003, -0.0001, 0, 0.0001, 0.0003)]
+    return mp, route
+
+
+def test_suggest_and_link_existing_event(client, fake):
+    mp, route = _placed_map(client)
+    fake.activities = [
+        _activity(1, "HITTA Leuven, the long one", day=19, map={"summary_polyline": _encode(route)}),
+        _activity(2, "Orienteering far away", day=20),  # Strava's sample route in California
+    ]
+    _connect(client)
+    client.post("/api/strava/sync", json={})
+    acts = {a["id"]: a for a in client.get("/api/strava/activities").json()}
+    assert acts[1001]["suggestion"]["map_id"] == mp["id"] and acts[1001]["suggestion"]["inside"] == 1.0
+    assert acts[1002]["suggestion"] is None
+
+    ch = client.get("/api/strava/activities/1001/choices").json()
+    (choice,) = ch["maps"]
+    ev = choice["events"][0]
+    assert choice["map_id"] == mp["id"] and ev["name"] == "HITTA Leuven" and ev["fit"] == "open"
+    kort, lang = ev["courses"]
+
+    r = client.put("/api/strava/activities/1001/link", json={
+        "map_id": mp["id"], "event_id": ev["id"], "course_id": lang["id"], "result_time_s": 3725, "position": 3})
+    assert r.status_code == 200, r.text
+    link = r.json()["link"]
+    assert link["course_name"] == "Lang" and link["map_name"] == "Arenbergpark" and link["date"] == "2026-09-19"
+
+    # The map page and the events list show the run.
+    detail = client.get(f"/api/maps/{mp['id']}").json()
+    (p,) = detail["versions"][0]["events"][0]["participations"]
+    assert p["result_time_s"] == 3725 and p["strava"]["url"].endswith("/1001")
+    assert client.get("/api/events").json()[0]["run_dates"] == ["2026-09-19"]
+
+    # A course of another event is refused; unlinking keeps the event and its courses.
+    other = client.post(f"/api/versions/{detail['versions'][0]['id']}/events", json={"name": "Other"}).json()
+    r = client.put("/api/strava/activities/1001/link", json={"map_id": mp["id"], "event_id": other["id"],
+                                                             "course_id": lang["id"]})
+    assert r.status_code == 422
+    assert client.delete("/api/strava/activities/1001/link").status_code == 204
+    assert client.get("/api/strava/activities").json()[1]["link"] is None
+    assert len(client.get(f"/api/maps/{mp['id']}").json()["versions"][0]["events"][0]["courses"]) == 2
+
+
+def test_link_creates_map_event_and_course(client, fake):
+    fake.activities = [_activity(1, "Sprint orienteering in Lier", day=17, workout_type=1)]
+    _connect(client)
+    client.post("/api/strava/sync", json={})
+    r = client.put("/api/strava/activities/1001/link", json={
+        "new_map": {"name": "Lier centrum", "location": "Lier", "map_type": "sprint"},
+        "new_event": {"name": "National Sprint, Lier", "event_type": "race", "discipline": "sprint"},
+        "new_course": {"name": "H50", "length_km": 3.2},
+        "position": 12, "competitors": 40,
+    })
+    assert r.status_code == 200, r.text
+    link = r.json()["link"]
+    mp = client.get(f"/api/maps/{link['map_id']}").json()
+    assert mp["name"] == "Lier centrum" and mp["needs_review"] and mp["lat"] is not None
+    ev = mp["versions"][0]["events"][0]
+    assert ev["date"] == "2026-09-17" and ev["courses"][0]["name"] == "H50"
+    assert ev["participations"][0]["position"] == 12
+
+    # Now that the map exists (located, not placed), the same route suggests it.
+    assert client.get("/api/strava/activities/1001/choices").json()["maps"][0]["map_id"] == mp["id"]
+
+    # Results stay when Strava is disconnected; only the Strava part goes.
+    client.post("/api/strava/disconnect")
+    p = client.get(f"/api/maps/{mp['id']}").json()["versions"][0]["events"][0]["participations"][0]
+    assert p["position"] == 12 and p["strava"] is None and p["strava_activity_id"] is None
+
+
+def test_date_fit_and_version():
+    from types import SimpleNamespace as NS
+    from app import runs
+    ev = lambda **kw: NS(**({"name": "", "date": None, "end_date": None, "event_type": None} | kw))  # noqa: E731
+    assert runs.date_fit(ev(date="2026-09-19"), "2026-09-19") == "same_day"
+    assert runs.date_fit(ev(date="2026-09-18"), "2026-09-19") is None
+    assert runs.date_fit(ev(date="2026-08-21", end_date="2026-08-23"), "2026-08-22") == "open"
+    assert runs.date_fit(ev(event_type="permanent"), "2026-01-24") == "open"
+    assert runs.date_fit(ev(event_type="permanent", date="2027"), "2026-01-24") is None
+    assert runs.date_fit(ev(date="2026-09"), "2026-09-19") == "open"
+    assert runs.date_fit(ev(name="20261004 Grobbendonk"), "2026-10-04") == "same_day"
+    mp = NS(versions=[NS(id=1, survey_date="2015"), NS(id=2, survey_date="2024-03"), NS(id=3, survey_date=None)])
+    assert runs.version_on(mp, "2020-05-01").id == 1
+    assert runs.version_on(mp, "2026-05-01").id == 2
+
+
+def test_not_a_race():
+    from app import strava
+    for n in ["Orienteering in Hulst, to the start of race 1", "Orienteering in As - back to the cc.",
+              "Sylvester Orienteering: back from the finish"]:
+        assert not strava.looks_like_orienteering({"name": n, "sport_type": "Walk"})

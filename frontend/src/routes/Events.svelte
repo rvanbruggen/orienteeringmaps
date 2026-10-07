@@ -6,7 +6,7 @@
   import { fmtDate, label } from '../lib/format.js'
 
   let events = $state([]), loading = $state(true)
-  let q = $state(''), year = $state(''), type = $state('')
+  let q = $state(''), year = $state(''), type = $state(''), mine = $state(false)
 
   onMount(async () => {
     try { events = await api.get('/api/events') } catch (e) { notify(e.message, 'error') }
@@ -19,7 +19,8 @@
     const t = q.trim().toLowerCase()
     return (!t || [e.name, e.map_name, e.map_location, e.organiser_name, ...e.course_names].some((v) => v?.toLowerCase().includes(t))) &&
       (!year || (year === 'undated' ? !e.date : e.date?.startsWith(year))) &&
-      (!type || e.event_type === type)
+      (!type || e.event_type === type) &&
+      (!mine || e.run_dates?.length)
   }))
   // Group by year for the timeline layout.
   const groups = $derived.by(() => {
@@ -49,6 +50,7 @@
       <option value="">All types</option>
       {#each types as t}<option value={t}>{label(t)}</option>{/each}
     </select>
+    <label class="row mine"><input type="checkbox" bind:checked={mine} /> Only events I ran</label>
   </div>
 
   {#if loading}
@@ -68,6 +70,7 @@
                 <span class="muted small">{e.map_name}{e.map_location ? ` · ${e.map_location}` : ''}{e.organiser_name ? ` · ${e.organiser_name}` : ''}</span>
               </span>
               <span class="chips">
+                {#if e.run_dates?.length}<span class="chip accent" title={e.run_dates.map(fmtDate).join(', ')}>You ran{e.run_dates.length > 1 ? ` ×${e.run_dates.length}` : ''}</span>{/if}
                 {#if e.event_type}<span class="chip">{label(e.event_type)}</span>{/if}
                 {#if e.discipline}<span class="chip">{label(e.discipline)}</span>{/if}
                 {#each e.course_names.slice(0, 4) as c}<span class="chip course">{c}</span>{/each}
@@ -87,6 +90,7 @@
   .filters { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1rem; }
   .filters input { flex: 1 1 260px; }
   .filters select { width: auto; }
+  .mine { font-size: .9rem; color: var(--muted); gap: .35rem; }
   .year { margin-bottom: 1.25rem; }
   .year h2 { font-size: 1.05rem; }
   .list { padding: 0; }

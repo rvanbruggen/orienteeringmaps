@@ -173,6 +173,7 @@ class EventOut(_Out):
     results_url: str | None
     notes: str | None
     courses: list[CourseOut] = []
+    participations: list[dict] = []  # your runs of this event (never published)
 
 
 class EventListItem(BaseModel):
@@ -191,6 +192,7 @@ class EventListItem(BaseModel):
     map_location: str | None
     version_label: str | None
     survey_date: str | None
+    run_dates: list[str] = []  # days you ran this event
 
 
 class CoursesFromFile(_In):

@@ -67,6 +67,19 @@
     }
     return out
   })
+  // Your runs (linked Strava activities and other recorded runs), by year.
+  const runDates = $derived(events.flatMap((e) => e.run_dates ?? []))
+  const runMaps = $derived(new Set(events.filter((e) => e.run_dates?.length).map((e) => e.map_id)).size)
+  const runsPerYear = $derived.by(() => {
+    const years = runDates.map((d) => +d.slice(0, 4)).filter(Boolean)
+    if (!years.length) return []
+    const now = new Date().getFullYear()
+    const out = []
+    for (let y = Math.min(...years); y <= Math.max(now, ...years); y++) {
+      out.push({ label: String(y), value: years.filter((x) => x === y).length })
+    }
+    return out
+  })
   const countBy = (list, keyFn, emptyLabel) => {
     const c = new Map()
     for (const m of list) {
@@ -131,6 +144,7 @@
       <div class="tile card"><span class="lbl">Placed on the map</span><span class="val num">{placed.length}</span><span class="sub">{pct(placed.length, maps.length)}% of maps</span></div>
       <div class="tile card"><span class="lbl">Mapped area</span><span class="val num">{area < 10 ? area.toFixed(1) : Math.round(area)} km²</span><span class="sub">placed maps only, overlaps counted twice</span></div>
       <div class="tile card"><span class="lbl">Events</span><span class="val num">{events.length}</span><span class="sub">{courses} courses</span></div>
+      <div class="tile card"><span class="lbl">Your runs</span><span class="val num">{runDates.length}</span><span class="sub">on {runMaps} map{runMaps === 1 ? '' : 's'} · <a href="#/runs">link more</a></span></div>
       <div class="tile card"><span class="lbl">Clubs</span><span class="val num">{clubCount}</span><span class="sub">owning a map</span></div>
       <div class="tile card"><span class="lbl">Oldest survey</span><span class="val">{oldest ? fmtDate(oldest.last_survey) : '—'}</span>
         <span class="sub">{oldest ? oldest.name : `${maps.filter((m) => !m.last_survey).length} maps undated`}</span></div>
@@ -151,6 +165,7 @@
 
     <section class="charts">
       <div class="card"><BarChart title="Events per year" orientation="vertical" data={eventsPerYear} format={(v) => String(Math.round(v))} /></div>
+      {#if runsPerYear.length}<div class="card"><BarChart title="Your runs per year" orientation="vertical" data={runsPerYear} format={(v) => String(Math.round(v))} /></div>{/if}
       <div class="card"><BarChart title="Maps by survey age" data={perAge} /></div>
       <div class="card"><BarChart title="Maps per club" data={perClub} /></div>
       <div class="card"><BarChart title="Maps per scale" data={perScale} /></div>

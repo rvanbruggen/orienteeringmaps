@@ -5,11 +5,13 @@
   import { notify } from '../lib/stores.svelte.js'
   import { route, go } from '../lib/router.svelte.js'
   import { fmtDuration, fmtDistance } from '../lib/format.js'
+  import LinkRunDialog from '../components/LinkRunDialog.svelte'
 
   let st = $state(null)
   let acts = $state([])
   let showAll = $state(false)
-  let q = $state(''), year = $state('')
+  let q = $state(''), year = $state(''), linked = $state('')
+  let linking = $state(null), linkOpen = $state(false)
   let syncing = $state(''), loading = $state(true)
 
   async function loadStatus() { st = await api.get('/api/strava/status') }
@@ -64,8 +66,19 @@
   const years = $derived([...new Set(acts.map((a) => a.start_local?.slice(0, 4)).filter(Boolean))].sort().reverse())
   const shown = $derived(acts.filter((a) => {
     const t = q.trim().toLowerCase()
-    return (!t || a.name.toLowerCase().includes(t)) && (!year || a.start_local?.startsWith(year))
+    return (!t || a.name.toLowerCase().includes(t) || a.link?.map_name.toLowerCase().includes(t)) &&
+      (!year || a.start_local?.startsWith(year)) &&
+      (!linked || (linked === 'yes' ? !!a.link : linked === 'suggested' ? !a.link && !!a.suggestion : !a.link))
   }))
+  const unlinked = $derived(acts.filter((a) => a.orienteering && !a.link).length)
+
+  function openLink(a) { linking = a; linkOpen = true }
+  function linked_(r) {
+    const a = acts.find((x) => x.id === r.id)
+    if (a) Object.assign(a, { link: r.link, orienteering: r.orienteering ?? a.orienteering })
+    // Suggestions may change (a new map was added), so refresh in the background.
+    loadActs().catch(() => {})
+  }
   const when = (d) => d ? new Date(d).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'never'
   const day = (s) => s ? new Date(s.slice(0, 10) + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : ''
 </script>
@@ -123,6 +136,14 @@
         <option value="">All years</option>
         {#each years as y}<option value={y}>{y}</option>{/each}
       </select>
+      {#if !showAll}
+        <select bind:value={linked} aria-label="Linked">
+          <option value="">All runs</option>
+          <option value="no">Not linked yet ({unlinked})</option>
+          <option value="suggested">Not linked, with a suggested map</option>
+          <option value="yes">Linked</option>
+        </select>
+      {/if}
       <label class="row toggle"><input type="checkbox" bind:checked={showAll} onchange={() => loadActs().catch((e) => notify(e.message, 'error'))} /> Show all activities</label>
     </div>
 
@@ -148,8 +169,20 @@
               <span>{fmtDuration(a.moving_time_s)}</span>
               {#if a.elevation_gain_m}<span class="muted">↑{Math.round(a.elevation_gain_m)} m</span>{/if}
             </span>
+            <span class="linkcol">
+              {#if a.link}
+                <a href="#/map/{a.link.map_id}" class="linked" title={a.link.event_name}>
+                  {a.link.map_name}{a.link.course_name ? ` · ${a.link.course_name}` : ''}
+                </a>
+                {#if a.link.position}<span class="muted small num">{a.link.position}{a.link.competitors ? `/${a.link.competitors}` : ''}</span>{/if}
+                <button class="small ghost" onclick={() => openLink(a)}>Edit</button>
+              {:else if a.orienteering}
+                {#if a.suggestion}<span class="sug small" title="Your route lies on this map">{a.suggestion.map_name}?</span>{/if}
+                <button class="small" class:primary={!!a.suggestion} onclick={() => openLink(a)}>Link…</button>
+              {/if}
+            </span>
             <label class="o" title={a.orienteering_manual ? 'Set by you' : 'Detected from the name'}>
-              <input type="checkbox" checked={a.orienteering} onchange={() => toggle(a)} />
+              <input type="checkbox" checked={a.orienteering} onchange={() => toggle(a)} disabled={!!a.link} />
               Orienteering
             </label>
           </div>
@@ -158,6 +191,8 @@
     {/if}
   {/if}
 </main>
+
+<LinkRunDialog activity={linking} bind:open={linkOpen} onsaved={linked_} />
 
 <style>
   .head { margin-bottom: .75rem; }
@@ -176,16 +211,20 @@
   .filters select { width: auto; }
   .toggle { font-size: .9rem; color: var(--muted); gap: .35rem; }
   .list { padding: 0; }
-  .act { display: grid; grid-template-columns: 10rem 1fr auto auto; gap: .75rem; align-items: center; padding: .55rem .9rem; border-bottom: 1px solid var(--border); }
+  .act { display: grid; grid-template-columns: 10rem 1fr auto auto auto; gap: .75rem; align-items: center; padding: .55rem .9rem; border-bottom: 1px solid var(--border); }
   .act:last-child { border-bottom: 0; }
   .act.dim strong { font-weight: 500; color: var(--muted); }
   .date { color: var(--muted); font-size: .9rem; }
   .main { display: flex; flex-direction: column; min-width: 0; }
   .strava-link { color: #fc5200; }
-  .stats { display: flex; gap: .75rem; font-size: .9rem; }
+  .stats { display: flex; gap: .75rem; font-size: .9rem; white-space: nowrap; }
+  .linkcol { display: flex; align-items: center; gap: .4rem; justify-content: flex-end; min-width: 9rem; }
+  .linked { font-weight: 500; }
+  .sug { color: var(--muted); max-width: 12rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .o { display: flex; align-items: center; gap: .3rem; font-size: .85rem; color: var(--muted); cursor: pointer; }
   @media (max-width: 720px) {
     .act { grid-template-columns: 1fr auto; gap: .25rem .75rem; }
-    .date, .main { grid-column: 1 / -1; }
+    .date, .main, .stats { grid-column: 1 / -1; }
+    .linkcol { justify-content: flex-start; min-width: 0; }
   }
 </style>

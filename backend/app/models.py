@@ -1,6 +1,7 @@
 """Database models.
 
 Map ─< MapVersion ─< Event ─< Course
+                     └─< Participation (you ran it) >─ StravaActivity
              └─< File ─< Page
 
 A File (PDF or image) belongs to a MapVersion, or to nobody yet (the inbox).
@@ -95,6 +96,9 @@ class Event(Base):
     organiser: Mapped[Club | None] = relationship()
     courses: Mapped[list["Course"]] = relationship(
         back_populates="event", cascade="all, delete-orphan", order_by="Course.id"
+    )
+    participations: Mapped[list["Participation"]] = relationship(
+        back_populates="event", cascade="all, delete-orphan", order_by="Participation.date"
     )
 
 
@@ -228,3 +232,26 @@ class StravaActivity(Base):
     orienteering_manual: Mapped[int] = mapped_column(Integer, default=0)  # set by you: sync won't change it
     raw: Mapped[dict | None] = mapped_column(JSON)
     synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class Participation(Base):
+    """You ran an event (one of its courses, if known), with your result and, optionally, the Strava activity.
+
+    Kept apart from StravaActivity, so your results stay when Strava is disconnected.
+    """
+    __tablename__ = "participations"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    event_id: Mapped[int] = mapped_column(ForeignKey("events.id", ondelete="CASCADE"), index=True)
+    course_id: Mapped[int | None] = mapped_column(ForeignKey("courses.id", ondelete="SET NULL"))
+    strava_activity_id: Mapped[int | None] = mapped_column(
+        ForeignKey("strava_activities.id", ondelete="SET NULL"), unique=True)
+    date: Mapped[str | None] = mapped_column(String(10))  # the day you ran it
+    result_time_s: Mapped[int | None] = mapped_column(Integer)  # official time
+    position: Mapped[int | None] = mapped_column(Integer)
+    competitors: Mapped[int | None] = mapped_column(Integer)
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    event: Mapped[Event] = relationship(back_populates="participations")
+    course: Mapped[Course | None] = relationship()
+    activity: Mapped[StravaActivity | None] = relationship()

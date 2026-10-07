@@ -59,9 +59,21 @@ def course_out(c: m.Course) -> s.CourseOut:
     return s.CourseOut(**_cols(c), thumb_url=thumb)
 
 
+def participation_out(p: m.Participation) -> dict:
+    a = p.activity
+    return {
+        "id": p.id, "event_id": p.event_id, "course_id": p.course_id, "strava_activity_id": p.strava_activity_id,
+        "date": p.date, "result_time_s": p.result_time_s, "position": p.position, "competitors": p.competitors,
+        "notes": p.notes, "course_name": p.course.name if p.course else None,
+        "strava": {"name": a.name, "distance_m": a.distance_m, "moving_time_s": a.moving_time_s,
+                   "elapsed_time_s": a.elapsed_time_s, "url": f"https://www.strava.com/activities/{a.id}"} if a else None,
+    }
+
+
 def event_out(e: m.Event) -> s.EventOut:
     return s.EventOut(**_cols(e), organiser_name=e.organiser.name if e.organiser else None,
-                      courses=[course_out(c) for c in e.courses])
+                      courses=[course_out(c) for c in e.courses],
+                      participations=[participation_out(p) for p in e.participations])
 
 
 def version_out(v: m.MapVersion) -> s.VersionOut:
@@ -147,6 +159,8 @@ MAP_LOAD = (
     selectinload(m.Map.versions).selectinload(m.MapVersion.events).selectinload(m.Event.courses)
     .selectinload(m.Course.file).selectinload(m.File.pages).selectinload(m.Page.georef),
     selectinload(m.Map.versions).selectinload(m.MapVersion.events).selectinload(m.Event.organiser),
+    selectinload(m.Map.versions).selectinload(m.MapVersion.events).selectinload(m.Event.participations)
+    .selectinload(m.Participation.activity),
 )
 
 

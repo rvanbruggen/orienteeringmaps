@@ -79,6 +79,22 @@ MIGRATIONS: list[str] = [
     );
     CREATE INDEX ix_strava_activities_start_date ON strava_activities (start_date)
     """,
+    # 4 -> 5 (v0.7.0): your runs of events
+    """
+    CREATE TABLE participations (
+        id INTEGER NOT NULL PRIMARY KEY,
+        event_id INTEGER NOT NULL REFERENCES events (id) ON DELETE CASCADE,
+        course_id INTEGER REFERENCES courses (id) ON DELETE SET NULL,
+        strava_activity_id INTEGER UNIQUE REFERENCES strava_activities (id) ON DELETE SET NULL,
+        date VARCHAR(10),
+        result_time_s INTEGER,
+        position INTEGER,
+        competitors INTEGER,
+        notes TEXT,
+        created_at DATETIME NOT NULL
+    );
+    CREATE INDEX ix_participations_event_id ON participations (event_id)
+    """,
 ]
 
 

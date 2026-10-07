@@ -189,14 +189,16 @@ def list_events(db: Session = Depends(get_session)):
     """Every event on every map, newest first (undated last)."""
     events = db.scalars(select(m.Event).options(
         selectinload(m.Event.version).selectinload(m.MapVersion.map),
-        selectinload(m.Event.organiser), selectinload(m.Event.courses))).all()
+        selectinload(m.Event.organiser), selectinload(m.Event.courses),
+        selectinload(m.Event.participations))).all()
     out = [s.EventListItem(
         id=e.id, name=e.name, date=e.date, end_date=e.end_date, event_type=e.event_type,
         discipline=e.discipline, organiser_name=e.organiser.name if e.organiser else None,
         results_url=e.results_url, course_count=len(e.courses),
         course_names=[c.name for c in e.courses], map_id=e.version.map_id, map_name=e.version.map.name,
         map_location=e.version.map.location, version_label=e.version.label,
-        survey_date=e.version.survey_date) for e in events]
+        survey_date=e.version.survey_date,
+        run_dates=[p.date for p in e.participations if p.date]) for e in events]
     # Dated events first (newest first), undated ones last.
     return sorted(out, key=lambda e: (e.date is not None, e.date or "", e.id), reverse=True)
 

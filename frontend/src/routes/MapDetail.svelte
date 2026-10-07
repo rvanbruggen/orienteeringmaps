@@ -3,7 +3,7 @@
   import { api, pick, uploadFile, MAP_KEYS, VERSION_KEYS, EVENT_KEYS, COURSE_KEYS } from '../lib/api.js'
   import { go } from '../lib/router.svelte.js'
   import { meta, notify, refreshMeta } from '../lib/stores.svelte.js'
-  import { fmtBytes, fmtContour, fmtDate, fmtKm, fmtScale, isPartialDate, label, PUBLISH_LEVELS } from '../lib/format.js'
+  import { fmtBytes, fmtContour, fmtDate, fmtDistance, fmtDuration, fmtKm, fmtScale, isPartialDate, label, PUBLISH_LEVELS } from '../lib/format.js'
   import Lightbox from '../components/Lightbox.svelte'
   import MapFields from '../components/MapFields.svelte'
   import VersionFields from '../components/VersionFields.svelte'
@@ -354,6 +354,23 @@
               {#if ev.notes}<p class="notes">{ev.notes}</p>{/if}
             {/if}
 
+            {#if ev.participations?.length}
+              <ul class="ran">
+                {#each ev.participations as p (p.id)}
+                  <li>
+                    <span class="chip accent">You ran</span>
+                    <span class="num">{fmtDate(p.date)}</span>
+                    {#if p.course_name}<span class="chip course">{p.course_name}</span>{/if}
+                    {#if p.result_time_s}<span class="num">{fmtDuration(p.result_time_s)}</span>{/if}
+                    {#if p.position}<span class="num">{p.position}{p.competitors ? `/${p.competitors}` : ''}</span>{/if}
+                    {#if p.strava}<span class="muted small num">{fmtDistance(p.strava.distance_m)} run</span>
+                      <a class="small strava-link" href={p.strava.url} target="_blank" rel="noopener">View on Strava</a>{/if}
+                    {#if p.notes}<span class="muted small">{p.notes}</span>{/if}
+                  </li>
+                {/each}
+              </ul>
+            {/if}
+
             {#if ev.courses.length}
               <table class="courses">
                 <thead><tr><th></th><th>Course</th><th class="num">Length</th><th class="num">Climb</th><th class="num">Controls</th><th class="num">Scale</th><th></th></tr></thead>
@@ -419,6 +436,9 @@
   .facts dd { margin: 0; font-weight: 500; }
   .facts .pub { padding: .1rem .3rem; font-size: .88rem; width: auto; }
   .nearby { display: flex; flex-direction: column; gap: .3rem; }
+  .ran { list-style: none; margin: .4rem 0 0; padding: 0; display: flex; flex-direction: column; gap: .25rem; font-size: .9rem; }
+  .ran li { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem; }
+  .strava-link { color: #fc5200; }
   .notes { white-space: pre-wrap; color: var(--muted); font-size: .92rem; margin: .25rem 0 0; }
 
   .timeline { position: relative; height: 34px; margin: .75rem .5rem 0; }
