@@ -2,7 +2,7 @@
 
 A personal library for orienteering maps: upload PDFs and images, record each map's versions (survey dates), events and courses, place maps on top of aerial photos, and find maps again in a table or on a map. See [PLAN.md](PLAN.md) for the roadmap.
 
-## Features (v0.5.2)
+## Features (v0.6.0)
 
 - **Upload** PDFs and images (PNG, JPG, TIFF, WebP, HEIC). Originals are stored unchanged, pages are rendered, and duplicates are detected: exact copies by hash, look-alikes by perceptual hash.
 - **Pre-filled details**: scale, contour interval, survey date, cartographer, club and course length are read from the PDF text, or from OCR for images. GPS coordinates are read from phone photos.
@@ -37,6 +37,7 @@ A personal library for orienteering maps: upload PDFs and images, record each ma
   - Every map has its own page, plus a sitemap, so search engines can find them.
   - Each map page has a "Request removal" link that opens a pre-filled GitHub issue on the site repository.
   - The **Publish** page shows what will change and lets you open a local preview. It pushes to GitHub with one click.
+- **Runs** (v0.6): connect your Strava account and import your activities. Orienteering runs are picked out from their names, and you can tick or untick any activity yourself. Strava data stays in the app and never goes on the public site. Linking runs to maps and events, and drawing your route on the map, come next (see [PLAN.md](PLAN.md) §10).
 
 ## Run with Docker
 
@@ -83,6 +84,15 @@ docker compose exec orienteeringmaps python -m app.cli rerender
    - Press **Publish now**.
 
 GitHub Pages is switched on at the first publish. The site appears at `https://<account>.github.io/<repository>/`. For a custom domain, set the site address on the Publish page and configure the domain in the repository's Pages settings.
+
+### Strava
+
+1. On [strava.com/settings/api](https://www.strava.com/settings/api), create an API application. Any name and website will do.
+2. Set its **Authorization Callback Domain** to the host name you open the app with, for example `192.168.1.20`. Leave out `http://` and the port. If Strava doesn't accept an IP address, use a name such as `omaps.lan` and add it to the hosts file of the computer you browse from.
+3. Add the Client ID and Client Secret to `.env` on the Docker host as `OMAPS_STRAVA_CLIENT_ID` and `OMAPS_STRAVA_CLIENT_SECRET`, then run `docker compose up -d`.
+4. Open **Runs** in the app, press **Connect with Strava** and approve. The first sync imports your activity history.
+
+**Disconnect** on the Runs page revokes the app's access and deletes the imported activities.
 
 ### Deploying an update
 

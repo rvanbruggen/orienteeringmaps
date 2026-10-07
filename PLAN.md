@@ -1,6 +1,6 @@
 # Orienteering Map Manager — Proposed Plan
 
-Status: **Phase 4 built (v0.4.0)**: coverage & insights. Other §6 extras (version compare, live GPS, Strava/Garmin) are not on the roadmap for now.
+Status: **Phase 6.1 built (v0.6.0)**: Strava connect and import. Phase 6 continues, see §10. Version compare and live GPS are not on the roadmap for now.
 
 ## 0. Decisions so far
 
@@ -11,7 +11,7 @@ Status: **Phase 4 built (v0.4.0)**: coverage & insights. Other §6 extras (versi
 | 3 | Modelling | Map → Versions (survey dates) → Events (race dates) → Courses (per event). Kort/Lang = two courses. |
 | 4 | File storage | Option C: bind-mounted `data/` folder on the host + the existing nightly restic backup (§8) |
 | 5 | OCAD/KMZ | None available, so all maps are placed manually with the editor |
-| 6 | Race history | Strava/Garmin import: not on the roadmap for now |
+| 6 | Race history | Strava import is back on the roadmap as Phase 6 (§10). Garmin is not. |
 | 7 | File types | Besides PDF, maps often come as **PNG/JPG** (see §1b) |
 
 ## 1. What the source files tell us
@@ -145,7 +145,8 @@ Ordered by my guess at value for you:
 | **2. Georeferencing** ✅ v0.2.0 | Side-by-side control-point editor, similarity/affine/perspective fitting + residuals, clip polygon, overlay display with opacity. *A separate "straighten photo" step turned out unnecessary: the perspective fit places angled phone photos directly.* | Maps shown on the satellite base map |
 | **3. Explorer & history** ✅ v0.3.0 | Map-based search, versions and events timeline, KMZ export | Full find-and-browse experience |
 | **4. Extras** ✅ v0.4.0 | Coverage & insights page (§6 item 4). Version compare and PWA/live GPS were dropped from the roadmap (nearby/overlapping maps already shipped in v0.3). | Insights page |
-| ~~v2~~ | ~~Personal race history: Strava / Garmin Connect import~~ (not on the roadmap for now) | — |
+| **5. Public site** ✅ v0.5.0 | Static site on GitHub Pages with per-map publish levels (see PLAN-public-site.md) | Public map explorer |
+| **6. Strava** 🚧 | Import your Strava activities, link races to maps and events, and draw your route on the map (§10) | Personal race history with routes |
 
 Docker deployment to the Mint box is part of Phase 1, so every phase can be used on the real server straight away.
 
@@ -173,3 +174,34 @@ Remaining open points (1–6 from round 1 are answered in §0):
 2. **Extras from §6:** which ones for v1?
 3. **Frontend preference:** any preference (Svelte, Vue, React, minimal htmx)? Otherwise I'll pick Svelte.
 4. **Mint box:** is Docker + docker compose already installed, and do you have SSH access from this Mac? Is there a port preference?
+
+## 10. Strava (Phase 6)
+
+Your Strava runs can help in three ways:
+1. **Placing a map:** a run on the map's terrain shows where it is, and the route helps you find matching points.
+2. **Race history:** which races you ran, on which map, with your time and distance.
+3. **Route overlay:** your GPS route drawn on the placed map, like Livelox.
+
+### What the data looks like
+
+A sample of 100 activities (Jun–Oct 2026) had 11 orienteering races. They are easy to recognise: "Orienteering" or a series name in the title, sport type `TrailRun` or `Run`, and often the Strava *Race* workout type. Walks to and from the start are logged separately and must be left out. The GPS is in "smart recording" mode, about one point every 4 s. That's enough for the route, but switching the watch to 1-second recording for races gives Livelox-like detail.
+
+### Strava API: what it takes
+
+- **A free API app** registered at strava.com/settings/api. No subscription is needed. It gives a client ID and a client secret, which go in `.env` on the Docker host (`OMAPS_STRAVA_CLIENT_ID`, `OMAPS_STRAVA_CLIENT_SECRET`).
+- **Authorisation (OAuth):** you click "Connect with Strava" once. Strava sends your browser back to the app, which stores a refresh token in the database and renews short-lived access tokens itself. The "Authorization Callback Domain" of the Strava app must be the host name you use to open the app (for example `192.168.1.20`, or `localhost` for development). The redirect goes through your browser, so the LAN-only box works.
+- **Scope:** `activity:read_all`, so private activities are imported too.
+- **No webhooks:** they need a public URL. A **Sync** button (later perhaps a nightly sync) is enough.
+- **Rate limits** (around 100–200 requests per 15 minutes, 1000–2000 per day) are no issue: the activity list comes 200 at a time, and the GPS points are fetched once per race.
+- **Terms:** the API agreement says a user's Strava data may only be shown *to that user*. So **Strava data never goes on the public site**: the publish step doesn't read it. A route for the public site would have to come from a GPX file you export yourself.
+- **Disconnect** removes the tokens, tells Strava to revoke access, and deletes the imported activities.
+
+### Steps
+
+| Step | Scope |
+|---|---|
+| **6.1 Connect and import** ✅ v0.6.0 | Strava settings in `.env`, OAuth connect/disconnect, sync of the activity list (incremental, 200 per request), a `strava_activities` table (summary, route outline, start and bounding box), orienteering detection, and a **Runs** page to browse, filter and hide activities. |
+| 6.2 Link races | Suggest the map (the route lies inside a placed map, or near a map's location) and the event (same date). One click links the activity to an event and course, or creates them. Record your participation: time, distance, position, Strava link. Races per year on Insights. |
+| 6.3 Route overlay | Fetch and cache the GPS points of linked activities. Draw the route on the map page's overlay, coloured by pace, and as a guide layer in the placing editor. Also draw it on the map image itself, using the inverse of the placement transform. |
+| 6.4 Livelox extras (later) | Replay with a time slider, a manual nudge (shift/rotate) to fix the GPS–map offset, and leg splits once control positions are stored per course. |
+

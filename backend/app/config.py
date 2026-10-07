@@ -21,6 +21,12 @@ GITHUB_TOKEN = os.environ.get("OMAPS_GITHUB_TOKEN", "")
 GITHUB_API = os.environ.get("OMAPS_GITHUB_API", "https://api.github.com")
 GITHUB_GIT = os.environ.get("OMAPS_GITHUB_GIT", "https://github.com")
 
+# Strava API app (strava.com/settings/api). Tokens are stored in the database after "Connect with Strava".
+STRAVA_CLIENT_ID = os.environ.get("OMAPS_STRAVA_CLIENT_ID", "")
+STRAVA_CLIENT_SECRET = os.environ.get("OMAPS_STRAVA_CLIENT_SECRET", "")
+STRAVA_API = os.environ.get("OMAPS_STRAVA_API", "https://www.strava.com/api/v3")
+STRAVA_OAUTH = os.environ.get("OMAPS_STRAVA_OAUTH", "https://www.strava.com/oauth")
+
 # Optional HTTP basic auth. Empty = no auth (LAN use).
 APP_USER = os.environ.get("OMAPS_USER", "rik")
 APP_PASSWORD = os.environ.get("OMAPS_PASSWORD", "")

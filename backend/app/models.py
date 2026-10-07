@@ -199,3 +199,32 @@ class PublishRun(Base):
     commit_sha: Mapped[str | None] = mapped_column(String(40))
     summary: Mapped[dict | None] = mapped_column(JSON)
     log: Mapped[str | None] = mapped_column(Text)
+
+
+class StravaActivity(Base):
+    """One activity imported from Strava (summary only; GPS points come later, per race).
+
+    Strava's terms allow showing this data only to the athlete it belongs to,
+    so nothing here ever goes on the public site.
+    """
+    __tablename__ = "strava_activities"
+    id: Mapped[int] = mapped_column(primary_key=True)  # Strava's activity id
+    name: Mapped[str] = mapped_column(String(300))
+    sport_type: Mapped[str | None] = mapped_column(String(40))
+    start_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)  # UTC
+    start_local: Mapped[str | None] = mapped_column(String(19))  # "2026-10-04T10:34:22", local time
+    distance_m: Mapped[float | None] = mapped_column(Float)
+    moving_time_s: Mapped[int | None] = mapped_column(Integer)
+    elapsed_time_s: Mapped[int | None] = mapped_column(Integer)
+    elevation_gain_m: Mapped[float | None] = mapped_column(Float)
+    workout_type: Mapped[int | None] = mapped_column(Integer)  # 1 = race (runs)
+    commute: Mapped[int] = mapped_column(Integer, default=0)
+    private: Mapped[int] = mapped_column(Integer, default=0)
+    start_lat: Mapped[float | None] = mapped_column(Float)
+    start_lon: Mapped[float | None] = mapped_column(Float)
+    bbox: Mapped[list | None] = mapped_column(JSON)  # [min_lat, min_lon, max_lat, max_lon] of the route
+    polyline: Mapped[str | None] = mapped_column(Text)  # Strava's simplified route (encoded polyline)
+    orienteering: Mapped[int] = mapped_column(Integer, default=0)
+    orienteering_manual: Mapped[int] = mapped_column(Integer, default=0)  # set by you: sync won't change it
+    raw: Mapped[dict | None] = mapped_column(JSON)
+    synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

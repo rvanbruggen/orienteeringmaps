@@ -15,6 +15,17 @@ export function fmtDate(d) {
   return `${+day} ${MONTHS[+m - 1]} ${y}`
 }
 
+/** 8793.8 -> "8,8 km" */
+export const fmtDistance = (m) => (m || m === 0 ? `${(m / 1000).toFixed(1).replace('.', ',')} km` : '')
+
+/** 4124 -> "1:08:44", 1800 -> "30:00" */
+export function fmtDuration(s) {
+  if (!s && s !== 0) return ''
+  const h = Math.floor(s / 3600), mm = Math.floor((s % 3600) / 60), ss = Math.round(s % 60)
+  const two = (n) => String(n).padStart(2, '0')
+  return h ? `${h}:${two(mm)}:${two(ss)}` : `${mm}:${two(ss)}`
+}
+
 export function fmtBytes(n) {
   if (n < 1024) return `${n} B`
   if (n < 1024 ** 2) return `${(n / 1024).toFixed(0)} KB`

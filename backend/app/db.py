@@ -53,6 +53,32 @@ MIGRATIONS: list[str] = [
         log TEXT
     )
     """,
+    # 3 -> 4 (v0.6.0): Strava activities
+    """
+    CREATE TABLE strava_activities (
+        id INTEGER NOT NULL PRIMARY KEY,
+        name VARCHAR(300) NOT NULL,
+        sport_type VARCHAR(40),
+        start_date DATETIME NOT NULL,
+        start_local VARCHAR(19),
+        distance_m FLOAT,
+        moving_time_s INTEGER,
+        elapsed_time_s INTEGER,
+        elevation_gain_m FLOAT,
+        workout_type INTEGER,
+        commute INTEGER NOT NULL,
+        private INTEGER NOT NULL,
+        start_lat FLOAT,
+        start_lon FLOAT,
+        bbox JSON,
+        polyline TEXT,
+        orienteering INTEGER NOT NULL,
+        orienteering_manual INTEGER NOT NULL,
+        raw JSON,
+        synced_at DATETIME NOT NULL
+    );
+    CREATE INDEX ix_strava_activities_start_date ON strava_activities (start_date)
+    """,
 ]
 
 
