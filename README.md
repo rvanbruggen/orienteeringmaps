@@ -2,7 +2,7 @@
 
 A personal library for orienteering maps: upload PDFs and images, record each map's versions (survey dates), events and courses, place maps on top of aerial photos, and find maps again in a table or on a map. See [PLAN.md](PLAN.md) for the roadmap.
 
-## Features (v0.10.0)
+## Features (v0.10.1)
 
 - **Upload** PDFs and images (PNG, JPG, TIFF, WebP, HEIC). Originals are stored unchanged, pages are rendered, and duplicates are detected: exact copies by hash, look-alikes by perceptual hash.
 - **Pre-filled details**: scale, contour interval, survey date, cartographer, club and course length are read from the PDF text, or from OCR for images. GPS coordinates are read from phone photos.
@@ -20,6 +20,7 @@ A personal library for orienteering maps: upload PDFs and images, record each ma
 - **Explorer map** (v0.3): the library's Map view shows every map as its outline (placed) or a pin (location only), using the same filters as the table. A side list shows the maps in view. Zoomed in, the map images are drawn on top.
 - **Events** page: every event on every map, grouped by year, with search and filters.
 - **Nearby maps** on each map page, with overlapping maps flagged.
+- **Map picture**: a map file is shown first, then a course print, then anything else (result cards last). Choose another one with "Use as map picture" on the map page.
 - **Insights** (v0.4):
   - Totals: maps, placed share, mapped area, events, courses, clubs, oldest survey.
   - A coverage map coloured by survey age.

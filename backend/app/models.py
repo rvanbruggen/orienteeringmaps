@@ -51,6 +51,9 @@ class Map(Base):
     # What the public site shows: private | outline | overlay | full (see publish.py).
     publish_level: Mapped[str] = mapped_column(String(10), default="private", server_default="private")
     public_note: Mapped[str | None] = mapped_column(Text)  # shown on the public site instead of notes
+    # The file you chose as the map's picture (thumbnail, map page, public site). No foreign key, to
+    # avoid a maps <-> files cycle: a file that left the map is simply ignored (see services.cover_file).
+    cover_file_id: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 

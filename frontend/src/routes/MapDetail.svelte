@@ -67,7 +67,8 @@
     label: `${versionTitle(v)} · ${f.original_name}${f.page_count > 1 ? ` · p${p.page_no}` : ''}`,
   })))) : [])
   const firstPlaceable = $derived(allFiles.find((f) => f.kind !== 'manual' && f.pages.length))
-  const hero = $derived(map?.versions.flatMap((v) => v.files).find((f) => f.kind !== 'manual' && f.pages.length))
+  // The map's picture, as chosen by the server: your choice, else a map file, then a course print, then anything else.
+  const hero = $derived(map?.versions.flatMap((v) => v.files).find((f) => f.id === map.cover_file_id && f.pages.length))
 
   // ------------------------------------------------------------- timeline --
   const timeline = $derived.by(() => {
@@ -132,6 +133,7 @@
   const removeCourse = (c) => confirm(`Delete course “${c.name}”?`) && act(() => api.del(`/api/courses/${c.id}`))
   const detachFile = (f) => confirm(`Move “${f.original_name}” back to the inbox?`) && act(() => api.patch(`/api/files/${f.id}`, { map_version_id: null }), 'Moved to inbox')
   const setKind = (f, kind) => act(() => api.patch(`/api/files/${f.id}`, { kind }))
+  const setCover = (fileId) => act(() => api.put(`/api/maps/${id}/cover`, { file_id: fileId }), fileId ? 'Map picture changed' : 'Map picture chosen automatically again')
   const setPublish = (level) => act(() => api.patch(`/api/maps/${id}`, { publish_level: level }),
     level === 'private' ? 'Removed from the public site at the next publish' : `Public site: ${PUBLISH_LEVELS.find((l) => l.value === level).label}`)
   const markReviewed = () => act(() => api.patch(`/api/maps/${id}`, { needs_review: false }), 'Marked as reviewed')
@@ -322,6 +324,12 @@
                         {f.pages.some((p) => p.georef) ? '✓ Placed' : 'Place'}</a>
                     {/if}
                     <button class="small ghost" onclick={() => detachFile(f)} title="Move back to the inbox">To inbox</button>
+                    {#if f.id === map.cover_file_id}
+                      <span class="chip accent" title={map.cover_chosen ? 'You chose this as the map picture' : 'Picked automatically: a map first, then a course print, then the rest'}>★ Map picture</span>
+                      {#if map.cover_chosen}<button class="small ghost" onclick={() => setCover(null)} title="Let the app pick the picture again">Automatic</button>{/if}
+                    {:else if f.pages.length && f.kind !== 'manual'}
+                      <button class="small ghost" onclick={() => setCover(f.id)} title="Show this file as the map’s picture: here, in the library and on the public site">☆ Use as map picture</button>
+                    {/if}
                   </div>
                 </div>
               </div>

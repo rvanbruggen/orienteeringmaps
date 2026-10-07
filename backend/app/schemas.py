@@ -318,10 +318,16 @@ class MapSummary(BaseModel):
     footprint: list[list[float]] | None = None  # [[lat, lon]] outline of the main placed page
     overlay: dict | None = None  # main placed page: {page_id, image_url, width, height, corners, clip}
     thumb_url: str | None
+    cover_file_id: int | None = None  # the file shown as the map's picture
     updated_at: datetime
 
 
+class MapCover(_In):
+    file_id: int | None = None  # None: back to the automatic choice
+
+
 class MapDetail(MapSummary):
+    cover_chosen: bool = False  # the picture was chosen by you, not picked automatically
     notes: str | None
     public_note: str | None = None
     created_at: datetime

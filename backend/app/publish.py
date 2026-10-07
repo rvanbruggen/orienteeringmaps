@@ -145,11 +145,8 @@ def _hero_page(mp: m.Map) -> m.Page | None:
     page = services.primary_page(mp)
     if page is not None:
         return page
-    for v in sorted(mp.versions, key=lambda v: (_sort_key(v.survey_date), v.id), reverse=True):
-        for f in sorted(v.files, key=lambda f: (f.kind not in ("map", "blank"), f.id)):
-            if f.kind != "manual" and f.pages:
-                return f.pages[0]
-    return None
+    f = services.cover_file(mp)
+    return f.pages[0] if f else None
 
 
 def _file(site: Site, f: m.File) -> dict:

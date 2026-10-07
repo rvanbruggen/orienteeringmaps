@@ -110,6 +110,10 @@ MIGRATIONS: list[str] = [
     ALTER TABLE courses ADD COLUMN control_coords JSON;
     ALTER TABLE participations ADD COLUMN route_adjust JSON
     """,
+    # 8 -> 9 (v0.10.1): the map's picture, chosen by you
+    """
+    ALTER TABLE maps ADD COLUMN cover_file_id INTEGER
+    """,
 ]
 
 

@@ -116,6 +116,17 @@ def update_map(map_id: int, data: s.MapIn, db: Session = Depends(get_session)):
     return services.map_detail(services.load_map(db, map_id))
 
 
+@router.put("/maps/{map_id}/cover", response_model=s.MapDetail)
+def set_cover(map_id: int, data: s.MapCover, db: Session = Depends(get_session)):
+    """Choose which file pictures the map (thumbnail, map page, public site), or go back to automatic."""
+    mp = services.load_map(db, map_id)
+    if data.file_id is not None and all(f.id != data.file_id for v in mp.versions for f in v.files):
+        raise HTTPException(422, "That file is not on this map")
+    mp.cover_file_id = data.file_id
+    db.commit()
+    return services.map_detail(services.load_map(db, map_id))
+
+
 @router.delete("/maps/{map_id}", status_code=204)
 def delete_map(map_id: int, db: Session = Depends(get_session)):
     """Delete a map with its versions, events and courses. Its files go back to the inbox."""

@@ -467,3 +467,37 @@ def test_change_photo_kind_keeps_course_file_in_step(client, fake):
     assert client.patch("/api/strava/activities/1001/photos/nope", json={"kind": "other"}).status_code == 404
     kinds = {p["id"]: p["file"]["kind"] for p in client.get("/api/strava/activities/1001/photos").json()}
     assert kinds == {"1001-1": "other", "1001-2": "other"}
+
+
+def test_map_picture_prefers_the_map_over_the_result_card_and_can_be_chosen(client, fake):
+    """A run's photos imported as [result card, map]: the map must picture the map, not the card."""
+    from tests.conftest import make_png
+    from tests.test_api import upload
+    fake.activities = [_activity(1, "Orienteering in Kattevenia", day=19, total_photo_count=2)]
+    _connect(client)
+    client.post("/api/strava/sync", json={})
+    link = client.put("/api/strava/activities/1001/link", json={
+        "new_map": {"name": "Kattevenia"}, "new_event": {"name": "National race"}}).json()["link"]
+    r = client.post("/api/strava/activities/1001/photos/import", json={"photos": [
+        {"id": "1001-1", "kind": "other"}, {"id": "1001-2", "kind": "map"}]}).json()
+    card, map_photo = r[0]["file_id"], r[1]["file_id"]
+    mp = client.get(f"/api/maps/{link['map_id']}").json()
+    assert mp["cover_file_id"] == map_photo and not mp["cover_chosen"]
+    summary = next(x for x in client.get("/api/maps").json() if x["id"] == mp["id"])
+    assert summary["cover_file_id"] == map_photo and summary["thumb_url"] == next(
+        f["thumb_url"] for f in mp["versions"][0]["files"] if f["id"] == map_photo)
+
+    # A course map beats a result card too.
+    client.patch("/api/strava/activities/1001/photos/1001-2", json={"kind": "course"})
+    assert client.get(f"/api/maps/{mp['id']}").json()["cover_file_id"] == map_photo
+
+    # You can choose any file of the map, and go back to automatic.
+    r = client.put(f"/api/maps/{mp['id']}/cover", json={"file_id": card})
+    assert r.status_code == 200 and r.json()["cover_file_id"] == card and r.json()["cover_chosen"]
+    other = upload(client, "elsewhere.png", make_png(color=(9, 9, 9)))["file"]
+    assert client.put(f"/api/maps/{mp['id']}/cover", json={"file_id": other["id"]}).status_code == 422
+    # A chosen file that leaves the map is ignored.
+    client.patch(f"/api/files/{card}", json={"map_version_id": None})
+    assert client.get(f"/api/maps/{mp['id']}").json()["cover_file_id"] == map_photo
+    r = client.put(f"/api/maps/{mp['id']}/cover", json={"file_id": None}).json()
+    assert r["cover_file_id"] == map_photo and not r["cover_chosen"]

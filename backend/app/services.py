@@ -92,17 +92,32 @@ def latest_version(mp: m.Map) -> m.MapVersion | None:
     return max(mp.versions, key=lambda v: (_sort_key(v.survey_date), v.id))
 
 
-def primary_page(mp: m.Map) -> m.Page | None:
-    """The placed page that represents a map: newest version first, maps before courses."""
+# Which files can stand for the map, best first: a map, then a course print, then anything else
+# (result cards, control descriptions, ...). Manuals never do.
+KIND_RANK = {"map": 0, "blank": 0, "course": 1}
+
+
+def _picture_files(mp: m.Map) -> list[m.File]:
+    """The map's files in the order they are tried as its picture: the one you chose, then newest
+    version first, and within a version by kind (KIND_RANK), then oldest file first."""
     versions = sorted(mp.versions, key=lambda v: (_sort_key(v.survey_date), v.id), reverse=True)
-    for v in versions:
-        files = sorted(v.files, key=lambda f: (f.kind not in ("map", "blank"), f.id))
-        for f in files:
-            if f.kind == "manual":
-                continue
-            for p in f.pages:
-                if p.georef is not None:
-                    return p
+    files = [f for v in versions
+             for f in sorted(v.files, key=lambda f: (KIND_RANK.get(f.kind, 2), f.id)) if f.kind != "manual"]
+    chosen = [f for f in files if f.id == mp.cover_file_id]
+    return chosen + [f for f in files if f.id != mp.cover_file_id]
+
+
+def cover_file(mp: m.Map) -> m.File | None:
+    """The file that pictures the map: your choice if it is still on the map, else the best by kind."""
+    return next((f for f in _picture_files(mp) if f.pages), None)
+
+
+def primary_page(mp: m.Map) -> m.Page | None:
+    """The placed page that represents a map, in the same order as its picture."""
+    for f in _picture_files(mp):
+        for p in f.pages:
+            if p.georef is not None:
+                return p
     return None
 
 
@@ -124,11 +139,8 @@ def map_summary(mp: m.Map) -> dict:
     files = [f for v in mp.versions for f in v.files]
     surveys = [v.survey_date for v in mp.versions if v.survey_date]
     event_dates = [e.date for e in events if e.date]
-    thumb = None
-    for f in (latest.files if latest else []) + files:
-        if f.pages and f.kind != "manual":
-            thumb = derived_url(f.pages[0].thumb_name)
-            break
+    cover = cover_file(mp)
+    thumb = derived_url(cover.pages[0].thumb_name) if cover else None
     return dict(
         id=mp.id, name=mp.name, location=mp.location, lat=mp.lat, lon=mp.lon,
         map_type=mp.map_type, club_id=mp.club_id, club_name=mp.club.name if mp.club else None,
@@ -140,7 +152,7 @@ def map_summary(mp: m.Map) -> dict:
         version_count=len(mp.versions), event_count=len(events),
         course_count=sum(len(e.courses) for e in events), file_count=len(files),
         placed_count=sum(1 for f in files for p in f.pages if p.georef is not None),
-        thumb_url=thumb, updated_at=mp.updated_at,
+        thumb_url=thumb, cover_file_id=cover.id if cover else None, updated_at=mp.updated_at,
         **_placement(mp),
     )
 
@@ -173,7 +185,8 @@ def load_map(db: Session, map_id: int) -> m.Map:
 
 def map_detail(mp: m.Map) -> s.MapDetail:
     return s.MapDetail(
-        **map_summary(mp), notes=mp.notes, public_note=mp.public_note, created_at=mp.created_at,
+        **map_summary(mp), cover_chosen=mp.cover_file_id is not None and mp.cover_file_id == getattr(cover_file(mp), "id", None),
+        notes=mp.notes, public_note=mp.public_note, created_at=mp.created_at,
         versions=[version_out(v) for v in sorted(mp.versions, key=lambda v: (_sort_key(v.survey_date), v.id), reverse=True)],
     )
 
