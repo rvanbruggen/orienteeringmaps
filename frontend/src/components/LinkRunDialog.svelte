@@ -157,7 +157,9 @@
   const PHOTO_KINDS = [
     { value: 'course', label: 'Course map' },
     { value: 'map', label: 'Map (no course)' },
-    { value: 'other', label: 'Result card / other' },
+    { value: 'result_card', label: 'Result card' },
+    { value: 'control_descriptions', label: 'Control descriptions' },
+    { value: 'other', label: 'Other' },
   ]
 
   // Change the type of a photo that is already in the library; saved straight away.
@@ -291,9 +293,7 @@
                   {:else}
                     <select bind:value={pick[p.id]} aria-label="Add this photo as">
                       <option value="">Don’t add</option>
-                      <option value="course">Course map</option>
-                      <option value="map">Map (no course)</option>
-                      <option value="other">Result card / other</option>
+                      {#each PHOTO_KINDS as k}<option value={k.value}>{k.label}</option>{/each}
                     </select>
                   {/if}
                 </figcaption>

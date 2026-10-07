@@ -479,17 +479,22 @@ def test_map_picture_prefers_the_map_over_the_result_card_and_can_be_chosen(clie
     link = client.put("/api/strava/activities/1001/link", json={
         "new_map": {"name": "Kattevenia"}, "new_event": {"name": "National race"}}).json()["link"]
     r = client.post("/api/strava/activities/1001/photos/import", json={"photos": [
-        {"id": "1001-1", "kind": "other"}, {"id": "1001-2", "kind": "map"}]}).json()
+        {"id": "1001-1", "kind": "result_card"}, {"id": "1001-2", "kind": "map"}]}).json()
     card, map_photo = r[0]["file_id"], r[1]["file_id"]
+    assert client.get(f"/api/files/{card}").json()["file"]["kind"] == "result_card"
     mp = client.get(f"/api/maps/{link['map_id']}").json()
     assert mp["cover_file_id"] == map_photo and not mp["cover_chosen"]
     summary = next(x for x in client.get("/api/maps").json() if x["id"] == mp["id"])
     assert summary["cover_file_id"] == map_photo and summary["thumb_url"] == next(
         f["thumb_url"] for f in mp["versions"][0]["files"] if f["id"] == map_photo)
 
-    # A course map beats a result card too.
+    # A course map beats a result card too, and so does control descriptions vs nothing better.
     client.patch("/api/strava/activities/1001/photos/1001-2", json={"kind": "course"})
     assert client.get(f"/api/maps/{mp['id']}").json()["cover_file_id"] == map_photo
+    client.patch("/api/strava/activities/1001/photos/1001-2", json={"kind": "control_descriptions"})
+    assert client.get(f"/api/maps/{mp['id']}").json()["cover_file_id"] == card  # equal rank: oldest first
+    client.patch("/api/strava/activities/1001/photos/1001-2", json={"kind": "course"})
+    assert "result_card" in client.get("/api/meta").json()["enums"]["file_kinds"]
 
     # You can choose any file of the map, and go back to automatic.
     r = client.put(f"/api/maps/{mp['id']}/cover", json={"file_id": card})

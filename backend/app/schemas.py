@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 PARTIAL_DATE = r"^\d{4}(-\d{2}(-\d{2})?)?$"
 
 MAP_TYPES = ["forest", "park", "sprint", "urban", "school", "permanent", "mtbo", "ski", "other"]
-FILE_KINDS = ["map", "course", "blank", "control_descriptions", "manual", "other"]
+FILE_KINDS = ["map", "course", "blank", "control_descriptions", "result_card", "manual", "other"]
 EVENT_TYPES = ["race", "training", "permanent", "school", "championship", "relay", "other"]
 DISCIPLINES = ["sprint", "middle", "long", "relay", "score", "night", "ultra", "knock-out", "other"]
 PUBLISH_LEVELS = ["private", "outline", "overlay", "full"]
