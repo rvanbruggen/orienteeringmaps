@@ -50,7 +50,8 @@ app.mount("/media", StaticFiles(directory=config.DERIVED_DIR), name="media")
 async def cache_headers(request: Request, call_next):
     response = await call_next(request)
     path = request.url.path
-    if path.startswith("/media/") or path.startswith("/assets/"):
+    # Only cache what was found: a 404 cached as immutable would hide the file once it exists.
+    if (path.startswith("/media/") or path.startswith("/assets/")) and response.status_code == 200:
         response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
     return response
 

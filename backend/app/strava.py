@@ -191,6 +191,17 @@ def _api_get(token: str, path: str, params: dict) -> list | dict:
     return r.json()
 
 
+STREAM_KEYS = ("latlng", "time", "distance", "altitude")
+
+
+def streams(db: Session, activity_id: int) -> dict:
+    """The activity's full GPS track at Strava's highest resolution: {key: [values]} for STREAM_KEYS."""
+    token = _access_token(db)
+    data = _api_get(token, f"/activities/{activity_id}/streams",
+                    {"keys": ",".join(STREAM_KEYS), "key_by_type": "true"})
+    return {k: (data.get(k) or {}).get("data") for k in STREAM_KEYS if (data.get(k) or {}).get("data")}
+
+
 PHOTO_SIZE = 5000  # ask for the largest; Strava serves at most 2048 px on the long side
 
 

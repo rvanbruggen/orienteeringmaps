@@ -52,6 +52,11 @@
   onMount(load)
 
   const allFiles = $derived(map ? map.versions.flatMap((v) => v.files) : [])
+  // Your runs with a GPS track on this map, newest first (for the route on the overlay).
+  const myRuns = $derived(map ? map.versions.flatMap((v) => v.events.flatMap((e) => (e.participations ?? [])
+    .filter((p) => p.strava_activity_id)
+    .map((p) => ({ activity_id: p.strava_activity_id, date: p.date, event_name: e.name, course_name: p.course_name, result_time_s: p.result_time_s }))))
+    .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '')) : [])
   const overlays = $derived(map ? map.versions.flatMap((v) => v.files.flatMap((f) => f.pages.filter((p) => p.georef).map((p) => ({
     key: p.id, page_id: p.id, image_url: p.image_url, width: p.width, height: p.height,
     corners: p.georef.corners, clip: p.georef.clip,
@@ -241,7 +246,7 @@
         {#if map.lat != null}<a class="btn small ghost" href="https://www.google.com/maps/search/?api=1&query={map.lat},{map.lon}" target="_blank" rel="noopener">Google Maps ↗</a>{/if}
       </div>
       {#if overlays.length}
-        {#key overlays.map((o) => o.key + o.corners.flat().join()).join()}<OverlayMap {overlays} />{/key}
+        {#key overlays.map((o) => o.key + o.corners.flat().join()).join()}<OverlayMap {overlays} runs={myRuns} />{/key}
       {:else if firstPlaceable}
         <div class="card placehint row">
           <span>Not placed yet. Pair a few points on the map with the aerial photo to show it on top of the real world.</span>

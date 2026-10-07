@@ -2,7 +2,7 @@
 
 A personal library for orienteering maps: upload PDFs and images, record each map's versions (survey dates), events and courses, place maps on top of aerial photos, and find maps again in a table or on a map. See [PLAN.md](PLAN.md) for the roadmap.
 
-## Features (v0.8.0)
+## Features (v0.9.0)
 
 - **Upload** PDFs and images (PNG, JPG, TIFF, WebP, HEIC). Originals are stored unchanged, pages are rendered, and duplicates are detected: exact copies by hash, look-alikes by perceptual hash.
 - **Pre-filled details**: scale, contour interval, survey date, cartographer, club and course length are read from the PDF text, or from OCR for images. GPS coordinates are read from phone photos.
@@ -37,11 +37,12 @@ A personal library for orienteering maps: upload PDFs and images, record each ma
   - Every map has its own page, plus a sitemap, so search engines can find them.
   - Each map page has a "Request removal" link that opens a pre-filled GitHub issue on the site repository.
   - The **Publish** page shows what will change and lets you open a local preview. It pushes to GitHub with one click.
-- **Runs** (v0.6–0.8): connect your Strava account and import your activities.
+- **Runs** (v0.6–0.9): connect your Strava account and import your activities.
   - Orienteering runs are picked out from their names (not the walk to the start and back), and you can tick or untick any activity yourself.
   - Each run is matched to the map your route lies on, and to the event on that day. **Link…** confirms the map, event and course, or creates them, and records your official time and position.
   - Photos you attached to the run on Strava, such as the map scan and the result card, can be added to the map from the same dialog: no separate upload needed. Strava keeps photos at up to 2048 pixels, enough to place the map.
   - Your runs show on the map page, on the Events page ("Only events I ran") and on Insights.
+  - **Your route on the map**: on a placed map, pick one of your runs to draw its GPS route, coloured by pace. View it on the aerial photo, or on the map image as printed ("Map only", like Livelox). The placing editor shows your route as a guide, and draws it on the map once it is fitted, so you can check the placement.
   - Strava data stays in the app and never goes on the public site. Drawing your route on the map comes next (see [PLAN.md](PLAN.md) §10).
 
 ## Run with Docker

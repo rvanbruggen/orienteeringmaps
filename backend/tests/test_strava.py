@@ -46,6 +46,13 @@ class FakeStrava:
                 {"unique_id": f"{aid}-{i}", "urls": {"5000": f"https://cdn.example/{aid}-{i}.png"},
                  "sizes": {"5000": [300, 200]}, "created_at": "2026-09-19T12:00:00Z", "caption": None}
                 for i in (1, 2)] + [{"unique_id": None, "urls": {}}])  # a video: skipped
+        if path.startswith("/api/v3/activities/") and path.endswith("/streams"):
+            self.stream_calls = getattr(self, "stream_calls", 0) + 1
+            assert request.url.params["key_by_type"] == "true"
+            pts = [(50.8759 + i * 1e-5, 4.7037 + i * 1e-5) for i in range(5)]
+            return httpx.Response(200, json={
+                "latlng": {"data": [list(p) for p in pts], "series_type": "distance"},
+                "time": {"data": [0, 4, 8, 12, 16]}, "distance": {"data": [0, 10, 20, 30, 40]}})
         if request.url.host == "cdn.example":
             from tests.conftest import make_png
             n = int(path.rsplit("-", 1)[1].split(".")[0])
@@ -362,3 +369,32 @@ def test_publish_warns_about_strava_photos(client):
         s.commit()
         s.expire_all()
         assert any("Strava" in w for w in warn())
+
+
+def test_route_is_fetched_once_and_offered_to_the_placing_editor(client, fake):
+    mp, route = _placed_map(client)
+    fake.activities = [_activity(1, "HITTA Leuven", day=19, map={"summary_polyline": _encode(route)})]
+    _connect(client)
+    client.post("/api/strava/sync", json={})
+    ev = client.get("/api/strava/activities/1001/choices").json()["maps"][0]["events"][0]
+    client.put("/api/strava/activities/1001/link", json={"map_id": mp["id"], "event_id": ev["id"],
+                                                         "course_id": ev["courses"][0]["id"]})
+    r = client.get("/api/strava/activities/1001/route").json()
+    assert len(r["latlng"]) == 5 and r["time"][-1] == 16 and r["distance"][-1] == 40 and r["altitude"] == []
+    client.get("/api/strava/activities/1001/route")
+    assert fake.stream_calls == 1  # kept after the first fetch
+
+    page_id = client.get(f"/api/maps/{mp['id']}").json()["overlay"]["page_id"]
+    ctx = client.get(f"/api/pages/{page_id}/georef").json()
+    assert ctx["runs"] == [{"activity_id": 1001, "date": "2026-09-19", "event_name": "HITTA Leuven",
+                            "course_name": "Kort", "result_time_s": None}]
+
+
+def test_placing_a_strava_photo_offers_its_run(client, fake):
+    fake.activities = [_activity(1, "Orienteering somewhere", day=19)]
+    _connect(client)
+    client.post("/api/strava/sync", json={})
+    fid = client.post("/api/strava/activities/1001/photos/import", json={"photos": [{"id": "1001-1"}]}).json()[0]["file_id"]
+    page_id = client.get(f"/api/files/{fid}").json()["file"]["pages"][0]["id"]
+    ctx = client.get(f"/api/pages/{page_id}/georef").json()
+    assert [r["activity_id"] for r in ctx["runs"]] == [1001]

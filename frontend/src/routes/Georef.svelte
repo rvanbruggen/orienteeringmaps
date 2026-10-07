@@ -9,6 +9,7 @@
   import { go } from '../lib/router.svelte.js'
   import { notify } from '../lib/stores.svelte.js'
   import { fmtScale } from '../lib/format.js'
+  import { loadRoute } from '../lib/route.js'
 
   let { pageId } = $props()
 
@@ -31,10 +32,13 @@
   let selected = $state(-1)
   let saving = $state(false), dirty = $state(false)
   let search = $state('')
+  let guides = $state([]) // GPS routes of your runs on this map, as a guide for finding points
+  let showRoute = $state(true)
 
   let imgEl = $state(), worldEl = $state()
   let imgMap, worldMap, overlay
   const imgLayer = L.layerGroup(), worldLayer = L.layerGroup()
+  const imgRoute = L.layerGroup(), worldRoute = L.layerGroup()
 
   // Image pixels <-> CRS.Simple lat/lng (y grows downwards in the image).
   const toLL = (x, y) => L.latLng(-y, x)
@@ -74,9 +78,42 @@
     addBasemaps(worldMap)
     worldLayer.addTo(worldMap)
     worldMap.on('click', onWorldClick)
+    imgRoute.addTo(imgMap)
+    worldRoute.addTo(worldMap)
     await setInitialWorldView()
     redraw()
+    loadGuides()
   }
+
+  // Your route(s) on this map: on the aerial photo always, and on the map image once there is a fit,
+  // which also shows at a glance whether the placement is right (the route should follow the paths).
+  async function loadGuides() {
+    const list = (ctx.runs ?? []).slice(0, 3)
+    const loaded = await Promise.all(list.map((r) => loadRoute(r.activity_id).catch(() => null)))
+    guides = loaded.filter((r) => r?.latlng.length)
+    if (guides.length && !ctx.georef && !ctx.other_placed.length) {
+      worldMap.fitBounds(L.latLngBounds(guides.flatMap((r) => r.latlng)), { padding: [20, 20] })
+    }
+  }
+
+  const ROUTE_STYLE = { color: '#e6007e', weight: 3, opacity: 0.8, interactive: false }
+
+  $effect(() => {
+    const H = fitRes?.matrix, show = showRoute, list = guides
+    untrack(() => {
+      if (!worldMap) return
+      worldRoute.clearLayers()
+      imgRoute.clearLayers()
+      if (!show) return
+      for (const r of list) {
+        L.polyline(r.latlng, ROUTE_STYLE).addTo(worldRoute)
+        if (H) {
+          const Hinv = invert3(H)
+          L.polyline(r.latlng.map(([lat, lon]) => toLL(...latLonToPixel(Hinv, lat, lon))), ROUTE_STYLE).addTo(imgRoute)
+        }
+      }
+    })
+  })
 
   async function setInitialWorldView() {
     if (ctx.georef) return worldMap.fitBounds(L.latLngBounds(ctx.georef.corners))
@@ -324,6 +361,11 @@
           <form class="search" onsubmit={(e) => { e.preventDefault(); doSearch() }}>
             <input type="search" placeholder="Go to place…" bind:value={search} />
           </form>
+          {#if guides.length}
+            <label class="inline route-toggle" title="The GPS route of your run{guides.length > 1 ? 's' : ''} on this map. Once the map is fitted, it is drawn on the map too: it should follow the paths you ran.">
+              <input type="checkbox" bind:checked={showRoute} /> <i></i>My route
+            </label>
+          {/if}
         </div>
         <div class="leaf" bind:this={worldEl}></div>
         {#if fitRes}
@@ -393,6 +435,8 @@
   .search { margin-left: auto; }
   .search input { padding: .15rem .45rem; font-size: .85rem; width: 200px; }
   .leaf { flex: 1; min-height: 0; background: #e8e6e1; cursor: crosshair; }
+  .route-toggle { font-weight: 500; white-space: nowrap; }
+  .route-toggle i { display: inline-block; width: 14px; height: 3px; background: #e6007e; border-radius: 2px; }
   .ovl { position: absolute; left: .6rem; bottom: 1.6rem; z-index: 500; padding: .35rem .6rem; display: flex; align-items: center; gap: .5rem; }
   .ovl input[type='range'] { width: 120px; accent-color: var(--accent); }
   .bottom { display: grid; grid-template-columns: minmax(260px, 360px) 1fr; gap: .75rem; margin-top: .75rem; align-items: start; }

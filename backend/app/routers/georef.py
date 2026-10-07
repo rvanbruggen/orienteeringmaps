@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from .. import georef as g
 from .. import models as m
-from .. import processing
+from .. import processing, runs
 from .. import schemas as s
 from .. import services
 from ..db import get_session
@@ -54,6 +54,11 @@ def _context(db: Session, page: m.Page) -> s.GeorefContext:
                         others.append({"page_id": op.id, "file_name": of.original_name, "page_no": op.page_no,
                                        "image_url": services.derived_url(op.image_name), "width": op.width,
                                        "height": op.height, "corners": op.georef.corners, "clip": op.georef.clip})
+    my_runs = runs.map_runs(mp) if mp else []
+    sid = (f.suggestions or {}).get("strava_activity_id")
+    if sid and all(r["activity_id"] != sid for r in my_runs) and (a := db.get(m.StravaActivity, sid)):
+        my_runs.insert(0, {"activity_id": a.id, "date": (a.start_local or "")[:10] or None, "event_name": a.name,
+                           "course_name": None, "result_time_s": None})
     return s.GeorefContext(
         page=services.page_out(page), file_id=f.id, file_name=f.original_name, file_format=f.format,
         page_count=f.page_count, map_id=mp.id if mp else None, map_name=mp.name if mp else None,
@@ -61,7 +66,7 @@ def _context(db: Session, page: m.Page) -> s.GeorefContext:
         stated_scale=stated, exif_lat=f.exif_lat, exif_lon=f.exif_lon,
         same_layout_pages=[services.page_out(p) for p in f.pages
                            if p.id != page.id and (p.width, p.height) == (page.width, page.height)],
-        other_placed=others[:20], georef=_georef_out(page.georef),
+        other_placed=others[:20], georef=_georef_out(page.georef), runs=my_runs,
     )
 
 

@@ -74,7 +74,10 @@
   function pickEvent(mapId) {
     const evs = choices.find((c) => String(c.map_id) === String(mapId))?.events ?? []
     const same = evs.filter((e) => e.fit === 'same_day')
-    const open = evs.filter((e) => e.fit === 'open')
+    // A permanent course is "open" every day, so only pick it when the run's name says so;
+    // a race in a town with a HITTA map is not a HITTA run.
+    const permanentRun = /hitta|mapico|permanent/i.test(activity.name)
+    const open = evs.filter((e) => e.fit === 'open' && (e.event_type !== 'permanent' || permanentRun))
     const best = same.length === 1 ? same[0] : !same.length && open.length === 1 ? open[0] : null
     eventSel = best ? String(best.id) : 'new'
     courseSel = ''
@@ -263,7 +266,7 @@
           <div class="photos">
             {#each photos as p (p.id)}
               <figure class:on={!!pick[p.id] || !!p.file}>
-                <a href={p.url} target="_blank" rel="noopener" title="Open full size"><img src={p.url} alt="Photo on Strava" loading="lazy" /></a>
+                <a href={p.url} target="_blank" rel="noopener" title="Open full size"><img src={p.url} alt="Attached to the run on Strava" loading="lazy" /></a>
                 <figcaption>
                   {#if p.file}
                     <span class="chip ok">In library · {label(p.file.kind)}</span>

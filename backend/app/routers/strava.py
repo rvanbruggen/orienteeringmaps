@@ -202,6 +202,16 @@ def delete_link(activity_id: int, db: Session = Depends(get_session)):
         db.commit()
 
 
+@router.get("/activities/{activity_id}/route")
+def get_route(activity_id: int, db: Session = Depends(get_session)):
+    """The run's GPS track: latlng, time, distance and altitude (fetched from Strava once)."""
+    a = _activity(db, activity_id)
+    try:
+        return runs.route(db, a)
+    except strava.StravaError as exc:
+        raise HTTPException(409, str(exc))
+
+
 @router.get("/activities/{activity_id}/photos")
 def get_photos(activity_id: int, db: Session = Depends(get_session)):
     """The photos on the activity at Strava, with the library file each was imported as."""

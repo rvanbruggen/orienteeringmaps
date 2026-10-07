@@ -232,6 +232,29 @@ def participations_by_activity(db: Session) -> dict[int, m.Participation]:
     return {p.strava_activity_id: p for p in rows}
 
 
+def route(db: Session, a: m.StravaActivity) -> dict:
+    """The run's GPS track, fetched from Strava the first time and kept."""
+    if a.streams is None:
+        a.streams = strava.streams(db, a.id)
+        db.commit()
+    s = a.streams or {}
+    return {"activity_id": a.id, "name": a.name, "start_local": a.start_local,
+            "latlng": s.get("latlng") or [], "time": s.get("time") or [], "distance": s.get("distance") or [],
+            "altitude": s.get("altitude") or []}
+
+
+def map_runs(mp: m.Map) -> list[dict]:
+    """Your runs with a Strava track on this map, newest first."""
+    out = []
+    for v in mp.versions:
+        for e in v.events:
+            for p in e.participations:
+                if p.strava_activity_id:
+                    out.append({"activity_id": p.strava_activity_id, "date": p.date, "event_name": e.name,
+                                "course_name": p.course.name if p.course else None, "result_time_s": p.result_time_s})
+    return sorted(out, key=lambda r: r["date"] or "", reverse=True)
+
+
 def photos(db: Session, a: m.StravaActivity) -> list[dict]:
     """The activity's Strava photos, marked with the library file they were imported as (if any)."""
     items = strava.photos(db, a.id)
@@ -274,6 +297,8 @@ def import_photos(db: Session, a: m.StravaActivity, wanted: list) -> list[dict]:
         if res.status == "created":
             f.source, f.source_id = "strava", w.id
             f.kind = w.kind
+            # Remember the run, so the placing editor can show its route even before the file is on a map.
+            f.suggestions = (f.suggestions or {}) | {"strava_activity_id": a.id}
             if f.exif_lat is None and centre:
                 f.exif_lat, f.exif_lon = centre
         if link and f.map_version_id is None:

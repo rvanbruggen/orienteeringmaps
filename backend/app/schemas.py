@@ -358,4 +358,5 @@ class GeorefContext(BaseModel):
     exif_lon: float | None
     same_layout_pages: list[PageOut]  # other pages of this file with identical size
     other_placed: list[dict]  # other placed pages of this map, for reference
+    runs: list[dict] = []  # your runs with a GPS track on this map (or the run a Strava photo came from)
     georef: GeorefOut | None

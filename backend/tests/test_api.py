@@ -176,3 +176,8 @@ def test_bulk_update_maps(client):
     assert client.post("/api/maps/bulk", json={"ids": [a["id"]], "publish_level": None}).status_code == 422
     assert client.post("/api/maps/bulk", json={"ids": [], "map_type": "park"}).status_code == 422
     assert client.post("/api/maps/bulk", json={"ids": [c["id"]], "club_id": 9999}).status_code == 404
+
+
+def test_missing_media_is_not_cached(client):
+    r = client.get("/media/00/nope/p1.webp")
+    assert r.status_code == 404 and "immutable" not in r.headers.get("cache-control", "")

@@ -235,6 +235,8 @@ class StravaActivity(Base):
     orienteering: Mapped[int] = mapped_column(Integer, default=0)
     orienteering_manual: Mapped[int] = mapped_column(Integer, default=0)  # set by you: sync won't change it
     raw: Mapped[dict | None] = mapped_column(JSON)
+    # The full GPS track, fetched once when first needed: {latlng: [[lat, lon]], time: [s], distance: [m], altitude: [m]}
+    streams: Mapped[dict | None] = mapped_column(JSON)
     synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 

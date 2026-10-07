@@ -101,6 +101,10 @@ MIGRATIONS: list[str] = [
     ALTER TABLE files ADD COLUMN source_id VARCHAR(100);
     CREATE INDEX ix_files_source_id ON files (source_id)
     """,
+    # 6 -> 7 (v0.9.0): GPS tracks of runs
+    """
+    ALTER TABLE strava_activities ADD COLUMN streams JSON
+    """,
 ]
 
 
