@@ -27,6 +27,12 @@ STRAVA_CLIENT_SECRET = os.environ.get("OMAPS_STRAVA_CLIENT_SECRET", "")
 STRAVA_API = os.environ.get("OMAPS_STRAVA_API", "https://www.strava.com/api/v3")
 STRAVA_OAUTH = os.environ.get("OMAPS_STRAVA_OAUTH", "https://www.strava.com/oauth")
 
+# O'Punch, the Belgian orienteering calendar. Its public iCalendar feed is pulled once a day;
+# a race's page is fetched only when asked (details) or by the one-off backfill command.
+OPUNCH_FEED_URL = os.environ.get("OMAPS_OPUNCH_FEED_URL", "https://www.opunch.org/calendar/all")
+OPUNCH_EVENT_URL = os.environ.get("OMAPS_OPUNCH_EVENT_URL", "https://www.opunch.org/in/event/{id}")
+OPUNCH_AUTO_PULL = os.environ.get("OMAPS_OPUNCH_AUTO_PULL", "1") not in ("0", "false", "no", "")
+
 # Optional HTTP basic auth. Empty = no auth (LAN use).
 APP_USER = os.environ.get("OMAPS_USER", "rik")
 APP_PASSWORD = os.environ.get("OMAPS_PASSWORD", "")

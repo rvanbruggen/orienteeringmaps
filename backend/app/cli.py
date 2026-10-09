@@ -8,6 +8,15 @@
 
     python -m app.cli rerender
         Rebuild all page images and thumbnails from the stored originals.
+
+    python -m app.cli opunch-pull
+        Fetch the O'Punch calendar feed now (the app does this once a day by itself).
+
+    python -m app.cli opunch-backfill [--from ID --to ID] [--months 12] [--delay 1.0]
+        One-off: read the O'Punch page of every id in the range and keep the races of
+        the last months, with their club, level, map name and results links. Ids are
+        not in date order and about half of them have no public race, so the whole
+        range is scanned; at one page a second, 1400 ids take about 25 minutes.
 """
 import argparse
 import sys
@@ -16,7 +25,7 @@ from pathlib import Path
 
 from sqlalchemy import select
 
-from . import db, processing
+from . import db, opunch, processing
 from . import models as m
 from .ingest import ingest_path
 from .services import find_club_by_name
@@ -128,6 +137,32 @@ def cmd_rerender(_args) -> int:
     return 0
 
 
+def cmd_opunch_pull(_args) -> int:
+    with db.SessionLocal() as session:
+        try:
+            r = opunch.pull(session)
+        except opunch.OpunchError as exc:
+            print(f"Pull failed: {exc}")
+            return 1
+    print(f"{r['in_feed']} races in the feed: {r['added']} new, {r['updated']} updated.")
+    return 0
+
+
+def cmd_opunch_backfill(args) -> int:
+    from datetime import date, timedelta
+    since = (date.today() - timedelta(days=int(args.months * 30.44))).isoformat()
+    print(f"Reading O'Punch ids {args.first} to {args.last}, keeping races on or after {since} …")
+    with db.SessionLocal() as session:
+        try:
+            r = opunch.backfill(session, args.first, args.last, since, delay=args.delay,
+                                progress=lambda i, state: print(f"  {i}  {state}", flush=True))
+        except opunch.OpunchError as exc:
+            print(f"Stopped: {exc}. Run again with --from <the last id shown> to continue.")
+            return 1
+    print(f"Done: {r['kept']} races kept, {r['skipped']} older than {since}, {r['missing']} ids without a race.")
+    return 0
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -137,6 +172,13 @@ def main(argv=None) -> int:
                        help="leave all files in the inbox instead of creating maps")
     p_imp.set_defaults(func=cmd_import)
     sub.add_parser("rerender", help="rebuild page images from the originals").set_defaults(func=cmd_rerender)
+    sub.add_parser("opunch-pull", help="fetch the O'Punch calendar feed now").set_defaults(func=cmd_opunch_pull)
+    p_bf = sub.add_parser("opunch-backfill", help="read O'Punch race pages for a range of ids (one-off)")
+    p_bf.add_argument("--from", dest="first", type=int, default=3000, help="first id (default 3000, roughly autumn 2024)")
+    p_bf.add_argument("--to", dest="last", type=int, default=4400, help="last id (default 4400)")
+    p_bf.add_argument("--months", type=float, default=12, help="keep races of the last N months (default 12)")
+    p_bf.add_argument("--delay", type=float, default=1.0, help="seconds between page requests (default 1)")
+    p_bf.set_defaults(func=cmd_opunch_backfill)
     args = parser.parse_args(argv)
     db.init_db()
     return args.func(args)

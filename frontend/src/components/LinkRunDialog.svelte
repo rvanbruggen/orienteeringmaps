@@ -12,6 +12,7 @@
   let loading = $state(true), busy = $state(false)
   let choices = $state([])            // maps offered, each with its events and courses
   let allMaps = $state([])            // for "another map"
+  let races = $state([])              // O'Punch races on the day, near the start of the run
   let mapSel = $state('')             // map id as string, or 'new'
   let newMap = $state({ name: '', location: '', map_type: null })
   let eventSel = $state('')           // event id as string, or 'new'
@@ -26,6 +27,9 @@
   const day = $derived(activity?.start_local?.slice(0, 10) ?? '')
   const choice = $derived(choices.find((c) => String(c.map_id) === mapSel))
   const event = $derived(choice?.events.find((e) => String(e.id) === eventSel))
+  const race = $derived(eventSel.startsWith('race:') ? races.find((r) => String(r.id) === eventSel.slice(5)) : null)
+  // Races already present as an event of the chosen map are shown as that event, not twice.
+  const openRaces = $derived(races.filter((r) => !(choice?.events ?? []).some((e) => e.opunch_id === r.id)))
 
   // A first guess at type and discipline from the activity's name.
   function guess(name, race) {
@@ -51,6 +55,7 @@
     try {
       const [res, maps] = await Promise.all([api.get(`/api/strava/activities/${activity.id}/choices`), allMaps.length ? allMaps : api.get('/api/maps')])
       choices = res.maps
+      races = res.races ?? []
       allMaps = maps
       const link = res.activity.link
       newMap = { name: '', location: '', map_type: null }
@@ -82,7 +87,10 @@
     const permanentRun = /hitta|mapico|permanent/i.test(activity.name)
     const open = evs.filter((e) => e.fit === 'open' && (e.event_type !== 'permanent' || permanentRun))
     const best = same.length === 1 ? same[0] : !same.length && open.length === 1 ? open[0] : null
-    eventSel = best ? String(best.id) : 'new'
+    // No fitting event yet: the race on O'Punch nearest to the start (or the only one that day) is the next best guess.
+    const open_ = races.filter((r) => !evs.some((e) => e.opunch_id === r.id))
+    const bestRace = !best && open_.length && (open_[0].distance_m != null || open_.length === 1) ? open_[0] : null
+    eventSel = best ? String(best.id) : bestRace ? `race:${bestRace.id}` : 'new'
     courseSel = ''
   }
 
@@ -110,7 +118,7 @@
   const timeS = $derived(parseTime(result.time))
   const valid = $derived(
     (mapSel === 'new' ? newMap.name.trim() : !!choice) &&
-    (eventSel === 'new' ? newEvent.name.trim() : !!event) &&
+    (eventSel === 'new' ? newEvent.name.trim() : race ? true : !!event) &&
     (courseSel !== 'new' || newCourse.name.trim()) &&
     !Number.isNaN(timeS))
 
@@ -124,6 +132,10 @@
     else body.map_id = +mapSel
     if (eventSel === 'new') body.new_event = {
       name: newEvent.name, date: newEvent.date || null, event_type: newEvent.event_type, discipline: newEvent.discipline,
+      version_id: mapSel !== 'new' && choice?.versions?.length > 1 ? newEvent.version_id : null,
+    }
+    else if (race) body.new_event = {
+      name: race.name, date: race.date, opunch_id: race.id,
       version_id: mapSel !== 'new' && choice?.versions?.length > 1 ? newEvent.version_id : null,
     }
     else body.event_id = +eventSel
@@ -160,6 +172,7 @@
   }
 
   const fitLabel = { same_day: 'same day', open: 'open that day' }
+  const raceDist = (r) => r.distance_m == null ? 'no coordinates on O’Punch' : r.distance_m < 1000 ? `${r.distance_m} m from your start` : `${(r.distance_m / 1000).toFixed(1).replace('.', ',')} km from your start`
   const PHOTO_KINDS = [
     { value: 'course', label: 'Course map' },
     { value: 'map', label: 'Map (no course)' },
@@ -233,7 +246,19 @@
             {#if e.date}<span class="muted">{fmtDate(e.date)}{e.end_date ? ` – ${fmtDate(e.end_date)}` : ''}</span>{/if}
             {#if e.event_type}<span class="chip">{label(e.event_type)}</span>{/if}
             {#if e.fit}<span class="chip ok">{fitLabel[e.fit]}</span>{/if}
+            {#if e.opunch_id}<span class="chip opunch">O’Punch</span>{/if}
             {#if choice.versions?.length > 1}<span class="muted small">· {versionName(choice.versions.find((v) => v.id === e.version_id) ?? {})}</span>{/if}
+          </span>
+        </label>
+      {/each}
+      {#each openRaces as r (r.id)}
+        <label class="opt">
+          <input type="radio" name="event" value="race:{r.id}" bind:group={eventSel} onchange={() => (courseSel = '')} />
+          <span>
+            <strong>{r.name}</strong>
+            <span class="muted">{fmtDate(r.date)}{r.town ? ` · ${r.town}` : ''}{r.club_name ? ` · ${r.club_name}` : ''}</span>
+            <span class="chip opunch">race on O’Punch</span>
+            <span class="muted small">· {raceDist(r)} · <a href={r.url} target="_blank" rel="noopener">open ↗</a></span>
           </span>
         </label>
       {/each}
@@ -241,6 +266,16 @@
         <input type="radio" name="event" value="new" bind:group={eventSel} />
         <span><strong>New event</strong></span>
       </label>
+      {#if race && mapSel !== 'new' && choice?.versions?.length > 1}
+        <div class="grid-form sub">
+          <label class="field wide"><span>Version of the map <span class="hint">(scale and contours of the map you ran on)</span></span>
+            <select bind:value={newEvent.version_id}>
+              {#each choice.versions as v (v.id)}<option value={v.id}>{versionName(v)}</option>{/each}
+            </select>
+          </label>
+        </div>
+      {/if}
+      {#if race}<p class="hint sub">A new event named after the race is made on the map, with its date, organiser and results link from O’Punch.</p>{/if}
       {#if eventSel === 'new'}
         <div class="grid-form sub">
           <label class="field wide"><span>Event name *</span><input bind:value={newEvent.name} /></label>
@@ -348,6 +383,8 @@
   .opt:hover { background: var(--surface-2); }
   .opt input { margin-top: .25rem; width: auto; flex: none; }
   .opt .chip { margin-left: .25rem; }
+  .chip.opunch { background: color-mix(in srgb, var(--focus) 12%, transparent); border-color: color-mix(in srgb, var(--focus) 40%, transparent); color: var(--focus); }
+  p.hint { font-size: .85rem; color: var(--muted); margin: 0; }
   .other { padding: .25rem .5rem .25rem 2rem; }
   .other select { width: auto; max-width: 100%; }
   .sub { padding: .25rem .5rem .5rem 2rem; }

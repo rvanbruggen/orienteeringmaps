@@ -12,6 +12,7 @@
   import Insights from './routes/Insights.svelte'
   import Publish from './routes/Publish.svelte'
   import Runs from './routes/Runs.svelte'
+  import Races from './routes/Races.svelte'
 
   onMount(() => {
     refreshMeta()
@@ -38,6 +39,7 @@
     </a>
     <a href="#/events" class:active={active('/events')}>Events</a>
     <a href="#/runs" class:active={active('/runs')}>Runs</a>
+    <a href="#/races" class:active={active('/races')}>Races</a>
     <a href="#/insights" class:active={active('/insights')}>Insights</a>
     <a href="#/clubs" class:active={active('/clubs')}>Clubs</a>
     <a href="#/publish" class:active={active('/publish')}>Publish</a>
@@ -57,6 +59,8 @@
   <Events />
 {:else if route.path === '/runs'}
   <Runs />
+{:else if route.path === '/races'}
+  <Races />
 {:else if route.path === '/insights'}
   <Insights />
 {:else if route.path === '/clubs'}

@@ -1,4 +1,5 @@
 """Strava: connect, sync and browse your activities (Runs page)."""
+from datetime import date, timedelta
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -9,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from .. import models as m
 from .. import schemas as s
-from .. import runs, services, strava
+from .. import opunch, runs, services, strava
 from ..db import get_session
 
 router = APIRouter(prefix="/api/strava", tags=["strava"])
@@ -40,6 +41,7 @@ class NewEvent(BaseModel):
     event_type: str | None = None
     discipline: str | None = None
     version_id: int | None = None  # which version of the map; default: the one in use on the day
+    opunch_id: int | None = None  # the race on O'Punch this event is: date, organiser and results are copied
 
 
 class NewCourse(BaseModel):
@@ -82,7 +84,8 @@ def _link_out(p: m.Participation | None) -> dict | None:
                                         "map_name": ev.version.map.name}
 
 
-def _out(a: m.StravaActivity, link: m.Participation | None = None, suggestion: dict | None = None) -> dict:
+def _out(a: m.StravaActivity, link: m.Participation | None = None, suggestion: dict | None = None,
+         opunch_race: dict | None = None) -> dict:
     return {
         "id": a.id, "name": a.name, "sport_type": a.sport_type, "start_date": a.start_date,
         "start_local": a.start_local, "distance_m": a.distance_m, "moving_time_s": a.moving_time_s,
@@ -92,7 +95,7 @@ def _out(a: m.StravaActivity, link: m.Participation | None = None, suggestion: d
         "orienteering": bool(a.orienteering), "orienteering_manual": bool(a.orienteering_manual),
         "strava_url": f"https://www.strava.com/activities/{a.id}",
         "photo_count": (a.raw or {}).get("total_photo_count") or 0,
-        "link": _link_out(link), "suggestion": suggestion,
+        "link": _link_out(link), "suggestion": suggestion, "opunch_race": opunch_race,
     }
 
 
@@ -156,16 +159,24 @@ def list_activities(all: bool = False, db: Session = Depends(get_session)):
         q = q.where(m.StravaActivity.orienteering == 1)
     links = runs.participations_by_activity(db)
     maps, cache = runs.load_maps(db), {}
+    races_by_day: dict[str, list[m.OpunchEvent]] = {}
+    for r in db.scalars(select(m.OpunchEvent)):
+        races_by_day.setdefault(r.date, []).append(r)
+        if r.end_date:  # a race over several days counts on each of them
+            d = date.fromisoformat(r.date)
+            while (d := d + timedelta(days=1)).isoformat() <= r.end_date:
+                races_by_day.setdefault(d.isoformat(), []).append(r)
     out = []
     for a in db.scalars(q):
         link = links.get(a.id)
-        sug = None
+        sug = race = None
         if link is None and a.orienteering:
             best = runs.suggest_maps(a, maps, cache, limit=1)
             if best:
                 mp, sc = best[0]
                 sug = {"map_id": mp.id, "map_name": mp.name, **sc}
-        out.append(_out(a, link, sug))
+            race = runs.race_suggestion(a, races_by_day)
+        out.append(_out(a, link, sug, opunch_race=race))
     return out
 
 
@@ -183,7 +194,7 @@ def choices(activity_id: int, map_id: int | None = None, db: Session = Depends(g
             raise HTTPException(404, "Map not found")
         suggested.append(runs.map_choice(mp, a, runs.score(runs.route_points(a), mp)))
     centre = runs.route_centre(a)
-    return {"activity": _out(a, link), "maps": suggested, "centre": centre}
+    return {"activity": _out(a, link), "maps": suggested, "centre": centre, "races": runs.races_for(db, a)}
 
 
 @router.put("/activities/{activity_id}/link")

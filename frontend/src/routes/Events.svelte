@@ -73,6 +73,7 @@
                 {#if e.run_dates?.length}<span class="chip accent" title={e.run_dates.map(fmtDate).join(', ')}>You ran{e.run_dates.length > 1 ? ` ×${e.run_dates.length}` : ''}</span>{/if}
                 {#if e.event_type}<span class="chip">{label(e.event_type)}</span>{/if}
                 {#if e.discipline}<span class="chip">{label(e.discipline)}</span>{/if}
+                {#if e.opunch_id}<span class="chip opunch" title="Published on O’Punch">O’Punch</span>{/if}
                 {#each e.course_names.slice(0, 4) as c}<span class="chip course">{c}</span>{/each}
                 {#if e.course_names.length > 4}<span class="chip course">+{e.course_names.length - 4}</span>{/if}
               </span>
@@ -101,6 +102,7 @@
   .main { display: flex; flex-direction: column; min-width: 0; }
   .small { font-size: .85rem; }
   .chips { display: flex; gap: .25rem; flex-wrap: wrap; justify-content: flex-end; }
+  .chip.opunch { background: color-mix(in srgb, var(--focus) 12%, transparent); border-color: color-mix(in srgb, var(--focus) 40%, transparent); color: var(--focus); }
   @media (max-width: 640px) {
     .ev { grid-template-columns: 1fr; gap: .2rem; }
     .chips { justify-content: flex-start; }

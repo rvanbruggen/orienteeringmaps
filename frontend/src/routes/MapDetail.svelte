@@ -364,6 +364,7 @@
                 {#if ev.discipline}<span class="chip">{label(ev.discipline)}</span>{/if}
                 {#if ev.organiser_name}<span class="muted small">by {ev.organiser_name}</span>{/if}
                 {#if ev.results_url}<a class="small" href={ev.results_url} target="_blank" rel="noopener">results ↗</a>{/if}
+                {#if ev.opunch_id}<a class="small" href="https://www.opunch.org/in/event/{ev.opunch_id}" target="_blank" rel="noopener" title="The race on O’Punch">O’Punch ↗</a>{/if}
                 <span class="spacer"></span>
                 <button class="small ghost" onclick={() => startEdit('event', ev)}>Edit</button>
                 <button class="small ghost danger" onclick={() => removeEvent(ev)}>Delete</button>

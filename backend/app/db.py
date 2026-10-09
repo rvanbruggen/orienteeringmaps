@@ -114,6 +114,39 @@ MIGRATIONS: list[str] = [
     """
     ALTER TABLE maps ADD COLUMN cover_file_id INTEGER
     """,
+    # 9 -> 10 (v0.11.0): races from the O'Punch calendar
+    """
+    ALTER TABLE events ADD COLUMN opunch_id INTEGER;
+    CREATE INDEX ix_events_opunch_id ON events (opunch_id);
+    CREATE TABLE opunch_events (
+        id INTEGER NOT NULL PRIMARY KEY,
+        name VARCHAR(300) NOT NULL,
+        date VARCHAR(10) NOT NULL,
+        end_date VARCHAR(10),
+        start VARCHAR(16),
+        "end" VARCHAR(16),
+        lat FLOAT,
+        lon FLOAT,
+        venue VARCHAR(300),
+        town VARCHAR(200),
+        location TEXT,
+        description TEXT,
+        url VARCHAR(300) NOT NULL,
+        club_code VARCHAR(40),
+        club_name VARCHAR(200),
+        level INTEGER,
+        map_name VARCHAR(300),
+        results_url VARCHAR(500),
+        splits_url VARCHAR(500),
+        registrations INTEGER,
+        details_at DATETIME,
+        source VARCHAR(10) NOT NULL,
+        ran INTEGER NOT NULL,
+        first_seen DATETIME NOT NULL,
+        last_seen DATETIME NOT NULL
+    );
+    CREATE INDEX ix_opunch_events_date ON opunch_events (date)
+    """,
 ]
 
 

@@ -146,7 +146,8 @@ Ordered by my guess at value for you:
 | **3. Explorer & history** ✅ v0.3.0 | Map-based search, versions and events timeline, KMZ export | Full find-and-browse experience |
 | **4. Extras** ✅ v0.4.0 | Coverage & insights page (§6 item 4). Version compare and PWA/live GPS were dropped from the roadmap (nearby/overlapping maps already shipped in v0.3). | Insights page |
 | **5. Public site** ✅ v0.5.0 | Static site on GitHub Pages with per-map publish levels (see PLAN-public-site.md) | Public map explorer |
-| **6. Strava** 🚧 | Import your Strava activities, link races to maps and events, and draw your route on the map (§10) | Personal race history with routes |
+| **6. Strava** ✅ v0.10.0 | Import your Strava activities, link races to maps and events, and draw your route on the map (§10) | Personal race history with routes |
+| **7. O'Punch races** ✅ v0.11.0 | Pull the Belgian orienteering calendar daily, keep every race, mark the ones you ran, tie races to map events and runs, and show them on the explorer map (§11) | Race history with locations, independent of your maps |
 
 Docker deployment to the Mint box is part of Phase 1, so every phase can be used on the real server straight away.
 
@@ -206,3 +207,31 @@ A sample of 100 activities (Jun–Oct 2026) had 11 orienteering races. They are 
 | **6.3 Route overlay** ✅ v0.9.0 | The full GPS track (Strava streams: position, time, distance, altitude) is fetched once per run when first shown, and kept. The map page's overlay gets a route picker (your runs on this map, newest first) and two views: **On the map** (route on the aerial photo with the placed map) and **Map only** (the map image as printed with the route drawn through the inverse placement, like Livelox). The route is coloured by pace against your typical pace on that run (the median per metre covered, since watches record points unevenly), with start and finish markers. The placing editor shows your route in pink on the aerial photo, and on the map image once there is a fit, so you can see whether the placement is right. A photo imported from Strava remembers its run, so its route shows even before the photo is on a map. |
 | **6.4 Livelox extras** ✅ v0.10.0 | **Replay**: time slider, play/pause at 5–120×, a runner dot with a one-minute trail over the faded route. **Adjust route**: shift (1–20 m steps) and turn (0.5°) the route to fix a GPS offset against the map; saved per run (`participations.route_adjust`) and used everywhere the route is drawn or split. **Controls**: click the start, controls and finish on the placed map (either view), drag to move; stored per course in world coordinates (`courses.control_coords`), so every run of that course shares them. **Leg splits**: a control counts as visited at the closest point of the first pass within 30 m after the previous control (closest point overall, marked "?", if the route never comes that close); per leg the split, total time, distance run vs. straight line (extra %) and pace; the slowest leg in bold; click a leg to highlight it and jump the replay there. Not handled yet: running past a later control early, which counts as visiting it. |
 
+
+## 11. Races from O'Punch (Phase 7)
+
+Most of the maps in the library come from races published on [O'Punch](https://www.opunch.org), the Belgian calendar and registration site. It knows where and when each race was, who organised it, and often the map's name. Pulling it in gives three things: a history of the races you ran, independent of whether their map is in the library yet; a ready-made event (name, date, organiser, results link) when linking a run; and a location for maps that are not placed yet.
+
+### What O'Punch offers
+
+| Source | What it gives | Limits |
+|---|---|---|
+| **iCalendar feed** `opunch.org/calendar/all` | Public, no login. For each race: a numeric id (stable, used in `opunch.org/in/event/<id>`), name, start and end time (Europe/Brussels), HTML description, link. About half of the races also have `GEO` (lat/lon) and a multi-line `LOCATION` (meeting point, street, town, country, directions). | **Upcoming races only**: exactly 200 events, about a year ahead. No past, and no filters (`?from=`, `?past=` and per-club or per-federation variants are ignored). No club, level, discipline or results. |
+| **Race page** `opunch.org/in/event/<id>` | Also public, for past races too (checked back to 2022). A regular layout: organiser logo (`<img class="org-logo" src=".../orgs/<code>.png" title="<club>">`), title with the date, `event-level-N` badge (1 local, 2 regional, 3 national), a "map" box with the map's name, coordinates in `data-geo`, Helga links for registrations, results and split times, and a "Series" box with sibling races of earlier years. | HTML that could change. Ids that are not public return the home page. Ids are not in date order (id 3600 is a race in 2027, id 3630 one in 2025). |
+
+No API key, no account and no AI: the feed is parsed by a small iCalendar reader, the page by regular expressions on its fixed markup.
+
+### Design
+
+- **`opunch_events` table**, keyed on the O'Punch id: everything from the feed, plus the page's club, level, map name, registrations and results links once read (`details_at`), `source` (feed or page), `ran` ("I ran this"), `first_seen` / `last_seen`. The daily pull is an upsert; rows are never deleted, so the history builds from the day the pull starts. A feed pull never erases page details or coordinates an earlier pull gave.
+- **`events.opunch_id`**: a map event *is* that race. Tying them copies the race's date, organiser (the club is created in the library if needed), and results link into the event's blanks, and gives the map the race's coordinates and town if it has none. Shown as an O'Punch chip and link on the Events page and the map page; editable by hand in the event form.
+- **Daily pull**: a daemon thread started with the app, checking every hour whether the last pull is more than a day old (so a restart never skips a day). `OMAPS_OPUNCH_AUTO_PULL=0` turns it off (the tests do). "Pull calendar now" on the Races page and `python -m app.cli opunch-pull` do the same by hand.
+- **Backfill** `python -m app.cli opunch-backfill`: reads the page of every id in a range (default 3000–4400, about autumn 2024 to now), one page a second, keeping races of the last 12 months. About 1 400 requests, 25 minutes, once. Afterwards the page scraper is only used on demand: the **Read … from O'Punch** button per race.
+- **Runs**: for a run, the races on that day (including multi-day ones) within 10 km of where the run started are offered in the link dialog, nearest first, and preselected when there is no fitting event on the map yet. Choosing one creates the event from the race (`new_event.opunch_id`). The Runs list shows the nearest race as a suggestion when no map is suggested. Linking a run to an event tied to a race marks the race as run.
+- **Explorer map**: races with coordinates are small pins (blue; orange when you ran them; paler when still to come), with a toggle. They are only in the private app; the public site does not read them.
+
+### Not done (yet)
+
+- Reading the "Series" box of a race page to find the earlier editions of a recurring race.
+- Marking a race as run from the Runs page without a map (today: tick "I ran this" on the Races page).
+- Cancelled races: the feed does not flag them.

@@ -94,6 +94,8 @@ class Event(Base):
     organiser_club_id: Mapped[int | None] = mapped_column(ForeignKey("clubs.id", ondelete="SET NULL"))
     results_url: Mapped[str | None] = mapped_column(String(500))
     notes: Mapped[str | None] = mapped_column(Text)
+    # The race on O'Punch (opunch_events.id) this event is, if it was published there.
+    opunch_id: Mapped[int | None] = mapped_column(Integer, index=True)
 
     version: Mapped[MapVersion] = relationship(back_populates="events")
     organiser: Mapped[Club | None] = relationship()
@@ -269,3 +271,39 @@ class Participation(Base):
     event: Mapped[Event] = relationship(back_populates="participations")
     course: Mapped[Course | None] = relationship()
     activity: Mapped[StravaActivity | None] = relationship()
+
+
+class OpunchEvent(Base):
+    """A race from the O'Punch calendar (opunch.org), kept for good once seen.
+
+    The public feed only lists upcoming races, so the daily pull builds the history:
+    rows are added or updated, never deleted. Details that are not in the feed
+    (club, level, map name, results) come from the race's page, fetched on demand.
+    """
+    __tablename__ = "opunch_events"
+    id: Mapped[int] = mapped_column(primary_key=True)  # O'Punch's event id, as in opunch.org/in/event/<id>
+    name: Mapped[str] = mapped_column(String(300))
+    date: Mapped[str] = mapped_column(String(10), index=True)  # first day, local
+    end_date: Mapped[str | None] = mapped_column(String(10))  # last day, for races over several days
+    start: Mapped[str | None] = mapped_column(String(16))  # "2026-10-10T08:45", local time
+    end: Mapped[str | None] = mapped_column(String(16))
+    lat: Mapped[float | None] = mapped_column(Float)
+    lon: Mapped[float | None] = mapped_column(Float)
+    venue: Mapped[str | None] = mapped_column(String(300))  # first line of the location: the meeting point
+    town: Mapped[str | None] = mapped_column(String(200))
+    location: Mapped[str | None] = mapped_column(Text)  # the full location text, with directions
+    description: Mapped[str | None] = mapped_column(Text)  # plain text
+    url: Mapped[str] = mapped_column(String(300))
+    # From the race's page (details_at is set once fetched):
+    club_code: Mapped[str | None] = mapped_column(String(40))  # "trol", from the organiser's logo
+    club_name: Mapped[str | None] = mapped_column(String(200))
+    level: Mapped[int | None] = mapped_column(Integer)  # 1 local, 2 regional, 3 national
+    map_name: Mapped[str | None] = mapped_column(String(300))
+    results_url: Mapped[str | None] = mapped_column(String(500))
+    splits_url: Mapped[str | None] = mapped_column(String(500))
+    registrations: Mapped[int | None] = mapped_column(Integer)
+    details_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    source: Mapped[str] = mapped_column(String(10), default="feed")  # feed | page (backfilled)
+    ran: Mapped[int] = mapped_column(Integer, default=0)  # "I ran this", also without a map in the library
+    first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

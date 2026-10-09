@@ -208,7 +208,7 @@ def list_events(db: Session = Depends(get_session)):
         results_url=e.results_url, course_count=len(e.courses),
         course_names=[c.name for c in e.courses], map_id=e.version.map_id, map_name=e.version.map.name,
         map_location=e.version.map.location, version_label=e.version.label,
-        survey_date=e.version.survey_date,
+        survey_date=e.version.survey_date, opunch_id=e.opunch_id,
         run_dates=[p.date for p in e.participations if p.date]) for e in events]
     # Dated events first (newest first), undated ones last.
     return sorted(out, key=lambda e: (e.date is not None, e.date or "", e.id), reverse=True)

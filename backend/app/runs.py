@@ -16,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from . import models as m
-from . import services, strava
+from . import opunch, services, strava
 from .ingest import ingest_stream
 
 MIN_INSIDE = 0.15  # share of the route on a placed map to suggest it
@@ -146,6 +146,35 @@ def version_on(mp: m.Map, day: str | None) -> m.MapVersion | None:
     return (before or vs)[-1]
 
 
+def races_for(db: Session, a: m.StravaActivity) -> list[dict]:
+    """O'Punch races on the day of the run, close to where it started (nearest first)."""
+    day = _day(a)
+    if not day:
+        return []
+    races = opunch.races_on(db, day)
+    if not races:
+        return []
+    lat, lon = (a.start_lat, a.start_lon) if a.start_lat is not None else (route_centre(a) or (None, None))
+    return opunch.near(races, lat, lon)
+
+
+def race_suggestion(a: m.StravaActivity, races_by_day: dict[str, list[m.OpunchEvent]]) -> dict | None:
+    """The one race that most likely is this run: the nearest within reach, or the only one that day."""
+    day = _day(a)
+    races = races_by_day.get(day or "", [])
+    if not races:
+        return None
+    lat, lon = (a.start_lat, a.start_lon) if a.start_lat is not None else (route_centre(a) or (None, None))
+    located = [r for r in races if r.lat is not None]
+    if lat is not None and located:
+        best = min(located, key=lambda r: opunch._dist_m(lat, lon, r.lat, r.lon))
+        d = opunch._dist_m(lat, lon, best.lat, best.lon)
+        return {"id": best.id, "name": best.name, "distance_m": round(d)} if d <= opunch.NEAR_RACE_M else None
+    if len(races) == 1:  # no way to tell by distance; the only race that day is a fair guess
+        return {"id": races[0].id, "name": races[0].name, "distance_m": None}
+    return None
+
+
 def map_choice(mp: m.Map, a: m.StravaActivity, sc: dict | None) -> dict:
     """A map as the link dialog shows it: its events (best date fit first) and courses."""
     day = _day(a)
@@ -155,7 +184,7 @@ def map_choice(mp: m.Map, a: m.StravaActivity, sc: dict | None) -> dict:
             fit = date_fit(e, day)
             events.append({
                 "id": e.id, "name": e.name, "date": e.date, "end_date": e.end_date, "event_type": e.event_type,
-                "version_id": v.id, "fit": fit,
+                "version_id": v.id, "fit": fit, "opunch_id": e.opunch_id,
                 "courses": [{"id": c.id, "name": c.name, "length_km": c.length_km} for c in e.courses],
             })
     rank = {"same_day": 0, "open": 1, None: 2}
@@ -205,6 +234,12 @@ def link(db: Session, a: m.StravaActivity, data) -> m.Participation:
                      discipline=ne.discipline or None)
         db.add(ev)
         db.flush()
+        if ne.opunch_id:
+            race = db.get(m.OpunchEvent, ne.opunch_id)
+            if race is None:
+                raise HTTPException(422, "That O'Punch race is not known here")
+            db.refresh(ev)
+            opunch.apply_to_event(db, race, ev)
     else:
         raise HTTPException(422, "Choose an event, or name a new one")
     # Course
@@ -233,6 +268,8 @@ def link(db: Session, a: m.StravaActivity, data) -> m.Participation:
             course.file_id, course.page_no = photo.id, 1
     # A linked activity is an orienteering run, whatever a later sync thinks of its name.
     a.orienteering, a.orienteering_manual = 1, 1
+    if ev.opunch_id and (race := db.get(m.OpunchEvent, ev.opunch_id)):
+        race.ran = 1
     db.commit()
     db.refresh(p)
     return p

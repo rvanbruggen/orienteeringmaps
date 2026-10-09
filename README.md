@@ -45,7 +45,13 @@ A personal library for orienteering maps: upload PDFs and images, record each ma
   - Your runs show on the map page, on the Events page ("Only events I ran") and on Insights.
   - **Your route on the map**: on a placed map, pick one of your runs to draw its GPS route, coloured by pace. View it on the aerial photo, or on the map image as printed ("Map only", like Livelox). The placing editor shows your route as a guide, and draws it on the map once it is fitted, so you can check the placement.
   - **Replay** your run with a time slider, **adjust** the route when the GPS is a few metres off, and click the **controls** of the course once to get your **split times per leg**: time, distance run against the straight line, and pace.
-  - Strava data stays in the app and never goes on the public site. Drawing your route on the map comes next (see [PLAN.md](PLAN.md) §10).
+  - Strava data stays in the app and never goes on the public site.
+- **Races from O'Punch** (v0.11): the Belgian orienteering calendar at [opunch.org](https://www.opunch.org) is pulled once a day, with no account or API key, and every race it ever showed is kept: name, date and time, meeting point with coordinates, description and link.
+  - A **Races** page lists them by year, past and upcoming, with search and filters. Tick **I ran this** for races whose map isn't in the library (yet), and **tie** a race to an event of a map. The event's date, organiser and results link are filled in from the race, and the map gets the race's location if it has none.
+  - On demand, the race's page on O'Punch is read for the club, level, map name, number of registrations and the Helga results and split-times links. A one-off **backfill** command reads the race pages of the past year, so the history doesn't start empty (see below).
+  - When linking a run, the race on O'Punch that day nearest to where you started is offered next to the map's events, and makes the event in one click. The Runs page shows the race as a suggestion too.
+  - The Library's Map view shows races as small pins (blue; orange when you ran them; paler when still to come) next to your maps, so a map can be placed where its race was held.
+  - Races stay in the app and are not put on the public site. Pulling the calendar can be turned off with `OMAPS_OPUNCH_AUTO_PULL=0`.
 
 ## Run with Docker
 
@@ -78,6 +84,16 @@ To rebuild rendered pages after changing render settings:
 ```bash
 docker compose exec orienteeringmaps python -m app.cli rerender
 ```
+
+### Races from O'Punch
+
+The calendar is pulled by the app itself, once a day, and with **Pull calendar now** on the Races page. The feed only lists upcoming races, so for the past year run the backfill once, on the server:
+
+```bash
+docker compose exec orienteeringmaps python -m app.cli opunch-backfill
+```
+
+It reads the O'Punch page of every race id from 3000 to 4400 (about a year of races; ids aren't in date order, and about half have no public race), one page a second, and keeps the races of the last 12 months with their club, level, map name and results links. It takes about 25 minutes and can be stopped and resumed with `--from <id>`. Options: `--from`, `--to`, `--months`, `--delay`. A single race's page can also be read from the Races page at any time.
 
 ### Public site on GitHub Pages
 

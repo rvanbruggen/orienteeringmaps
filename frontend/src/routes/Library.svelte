@@ -9,6 +9,7 @@
 
   const PREFS_KEY = 'omaps.library'
   let maps = $state([])
+  let races = $state([]) // O'Punch races with coordinates, for the Map view
   let loading = $state(true)
 
   const defaults = { q: '', type: '', club: '', tag: '', pub: '', review: false, sort: 'name', dir: 1, view: 'table' }
@@ -25,6 +26,7 @@
   async function reload() {
     try { maps = await api.get('/api/maps') } catch (e) { notify(e.message, 'error') }
     loading = false
+    api.get('/api/opunch/races').then((r) => (races = r.filter((x) => x.lat != null))).catch(() => {})
   }
   onMount(reload)
 
@@ -208,7 +210,7 @@
       <a class="btn primary" href="#/upload">+ Add maps</a>
     </div>
   {:else if prefs.view === 'map'}
-    <ExplorerMap maps={filtered} />
+    <ExplorerMap maps={filtered} {races} />
   {:else if !filtered.length}
     <p class="empty">No maps match these filters.</p>
   {:else if prefs.view === 'table'}

@@ -9,11 +9,13 @@
   import { fmtDate, fmtScale } from '../lib/format.js'
 
   // href/open: how to link to a map (the public site uses its own routes).
-  let { maps = [], href = (m) => `#/map/${m.id}`, open = (m) => go(`/map/${m.id}`), storageKey = 'omaps.explorer', showUnlocated = true } = $props()
+  // races: O'Punch races with coordinates (the private app only), drawn as small pins when ticked.
+  let { maps = [], races = [], href = (m) => `#/map/${m.id}`, open = (m) => go(`/map/${m.id}`), storageKey = 'omaps.explorer', showUnlocated = true } = $props()
 
   const VIEW_KEY = untrack(() => `${storageKey}.view`)
   const IMAGES_KEY = untrack(() => `${storageKey}.images`)
   const OPACITY_KEY = untrack(() => `${storageKey}.opacity`)
+  const RACES_KEY = untrack(() => `${storageKey}.races`)
   const IMAGE_MIN_ZOOM = 14
   const MAX_IMAGES = 12
 
@@ -21,12 +23,14 @@
   let map
   const shapes = L.featureGroup()
   const images = L.layerGroup()
+  const racePins = L.layerGroup()
   let byId = new Map() // map id -> leaflet layer
   let imageLayers = new Map() // map id -> WarpedImage
   let inView = $state([])
   let onlyInView = $state(true)
   let showImages = $state(load(IMAGES_KEY, true))
   let opacity = $state(load(OPACITY_KEY, 0.85))
+  let showRaces = $state(load(RACES_KEY, true))
   let zoom = $state(0)
   let hovered = $state(null)
 
@@ -46,6 +50,7 @@
     addBasemaps(map, { key: `${untrack(() => storageKey)}.basemap`, fallback: 'osm' })
     shapes.addTo(map)
     images.addTo(map)
+    racePins.addTo(map)
     const saved = load(VIEW_KEY, null)
     if (saved) map.setView(saved.center, saved.zoom)
     else map.setView([50.85, 4.35], 8)
@@ -116,6 +121,25 @@
     }
   }
 
+  function drawRaces() {
+    if (!map) return
+    racePins.clearLayers()
+    if (!showRaces) return
+    const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+    const today = new Date().toISOString().slice(0, 10)
+    for (const r of races) {
+      if (r.lat == null) continue
+      const past = r.date <= today
+      const pin = L.circleMarker([r.lat, r.lon], { radius: 4.5, color: '#fff', weight: 1.5, fillColor: r.you_ran ? '#f26a1b' : '#2b6cb0', fillOpacity: past ? 0.95 : 0.55, pane: 'markerPane' })
+      pin.bindTooltip(`${esc(r.name)} · ${fmtDate(r.date)}`, { direction: 'top' })
+      const facts = [fmtDate(r.date), r.venue, r.town, r.club_name, r.you_ran && 'you ran this'].filter(Boolean)
+      const links = r.events.map((e) => `<a href="#/map/${e.map_id}">${esc(e.map_name)}</a>`).join(', ')
+      pin.bindPopup(`<span class="xp-pop"><span><strong>${esc(r.name)}</strong><small>${facts.map(esc).join(' · ')}</small>` +
+        `<small>${links ? `Map: ${links} · ` : ''}<a href="${esc(r.url)}" target="_blank" rel="noopener">O’Punch ↗</a> · <a href="#/races">Races</a></small></span></span>`, { maxWidth: 300 })
+      pin.addTo(racePins)
+    }
+  }
+
   function fitAll() {
     if (shapes.getLayers().length) map.fitBounds(shapes.getBounds(), { padding: [30, 30], maxZoom: 15 })
   }
@@ -131,6 +155,11 @@
   $effect(() => {
     void located
     untrack(draw)
+  })
+  $effect(() => {
+    void races; void showRaces
+    save(RACES_KEY, showRaces)
+    untrack(drawRaces)
   })
   $effect(() => {
     const o = opacity
@@ -160,6 +189,9 @@
         {#if showImages && zoom < IMAGE_MIN_ZOOM}<span class="muted">(zoom in)</span>{/if}</label>
       {#if showImages && zoom >= IMAGE_MIN_ZOOM}
         <label class="inline">Opacity <input type="range" min="0" max="1" step="0.05" bind:value={opacity} aria-label="Map image opacity" /></label>
+      {/if}
+      {#if races.length}
+        <label class="inline" title="Races from the O’Punch calendar: blue, orange when you ran them; paler when still to come"><input type="checkbox" bind:checked={showRaces} /> Races</label>
       {/if}
     </div>
   </div>

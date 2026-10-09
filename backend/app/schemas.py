@@ -160,6 +160,7 @@ class EventIn(_In):
     organiser_club_id: int | None = None
     results_url: str | None = None
     notes: str | None = None
+    opunch_id: int | None = None  # the race on O'Punch
     # Only when editing: move the event (with its courses and your runs) to another version of the same map.
     map_version_id: int | None = None
 
@@ -176,6 +177,7 @@ class EventOut(_Out):
     organiser_name: str | None = None
     results_url: str | None
     notes: str | None
+    opunch_id: int | None = None
     courses: list[CourseOut] = []
     participations: list[dict] = []  # your runs of this event (never published)
 
@@ -196,6 +198,7 @@ class EventListItem(BaseModel):
     map_location: str | None
     version_label: str | None
     survey_date: str | None
+    opunch_id: int | None = None
     run_dates: list[str] = []  # days you ran this event
 
 

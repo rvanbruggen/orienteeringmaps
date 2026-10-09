@@ -7,8 +7,9 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, config, db
+from . import __version__, config, db, opunch
 from .routers import clubs, files, georef, maps, misc, publish, strava
+from .routers import opunch as opunch_router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -38,8 +39,12 @@ def healthz():
     return {"ok": True, "version": __version__}
 
 
-for r in (maps.router, files.router, clubs.router, georef.router, misc.router, publish.router, strava.router):
+for r in (maps.router, files.router, clubs.router, georef.router, misc.router, publish.router, strava.router,
+          opunch_router.router):
     app.include_router(r)
+
+# The O'Punch calendar is pulled once a day (OMAPS_OPUNCH_AUTO_PULL=0 turns this off).
+opunch.start_scheduler(db.SessionLocal)
 
 config.ensure_dirs()
 # Rendered pages are immutable (named by content hash), so they can be cached forever.

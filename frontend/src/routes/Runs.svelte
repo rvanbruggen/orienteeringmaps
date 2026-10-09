@@ -178,7 +178,8 @@
                 {#if a.link.position}<span class="muted small num">{a.link.position}{a.link.competitors ? `/${a.link.competitors}` : ''}</span>{/if}
                 <button class="small ghost" onclick={() => openLink(a)}>Edit</button>
               {:else if a.orienteering}
-                {#if a.suggestion}<span class="sug small" title="Your route lies on this map">{a.suggestion.map_name}?</span>{/if}
+                {#if a.suggestion}<span class="sug small" title="Your route lies on this map">{a.suggestion.map_name}?</span>
+                {:else if a.opunch_race}<span class="sug small" title="Race on O’Punch that day{a.opunch_race.distance_m != null ? `, ${(a.opunch_race.distance_m / 1000).toFixed(1).replace('.', ',')} km from your start` : ''}">{a.opunch_race.name}?</span>{/if}
                 <button class="small" class:primary={!!a.suggestion} onclick={() => openLink(a)}>Link…</button>
               {/if}
             </span>

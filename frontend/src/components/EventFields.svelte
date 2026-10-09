@@ -35,5 +35,7 @@
   </label>
   <label class="field"><span>Organiser</span><ClubSelect bind:value={event.organiser_club_id} id="{prefix}-org" /></label>
   <label class="field"><span>Results / Livelox link</span><input type="url" bind:value={event.results_url} placeholder="https://" /></label>
+  <label class="field"><span>O’Punch race <span class="hint">(the number in opunch.org/in/event/…)</span></span>
+    <input type="number" min="1" bind:value={event.opunch_id} placeholder="e.g. 3641" /></label>
   <label class="field wide"><span>Notes</span><textarea bind:value={event.notes} rows="2"></textarea></label>
 </div>
