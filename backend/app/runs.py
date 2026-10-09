@@ -12,7 +12,7 @@ import re
 import unicodedata
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from . import models as m
@@ -255,17 +255,15 @@ def link(db: Session, a: m.StravaActivity, data) -> m.Participation:
 
     p = db.scalars(select(m.Participation).where(m.Participation.strava_activity_id == a.id)).first()
     p = p or m.Participation(strava_activity_id=a.id)
-    p.event_id = ev.id
-    p.course_id = course.id if course else None
+    p.event, p.course = ev, course
     p.date = day
     p.result_time_s, p.position, p.competitors = data.result_time_s, data.position, data.competitors
     p.notes = data.notes or None
     db.add(p)
-    # A course map photo of this run, imported before the course was chosen, becomes the course's file.
-    if course is not None and course.file_id is None:
-        photo = next((f for f in run_files(db, a) if f.kind == "course"), None)
-        if photo is not None:
-            course.file_id, course.page_no = photo.id, 1
+    # Photos and scans of this run still in the inbox go onto the event's map, and a course map
+    # among them (imported before the course was chosen) becomes the course's file.
+    for f in run_files(db, a):
+        place_file(p, f)
     # A linked activity is an orienteering run, whatever a later sync thinks of its name.
     a.orienteering, a.orienteering_manual = 1, 1
     if ev.opunch_id and (race := db.get(m.OpunchEvent, ev.opunch_id)):
@@ -363,9 +361,9 @@ def import_photos(db: Session, a: m.StravaActivity, wanted: list) -> list[dict]:
 
 
 def run_files(db: Session, a: m.StravaActivity) -> list[m.File]:
-    """Library files imported from this run's Strava photos, oldest first."""
-    files = db.scalars(select(m.File).where(m.File.source == "strava").order_by(m.File.id)).all()
-    return [f for f in files if (f.suggestions or {}).get("strava_activity_id") == a.id]
+    """Library files of this run (its Strava photos, scans matched to it), oldest first."""
+    return db.scalars(select(m.File).where(func.json_extract(m.File.suggestions, "$.strava_activity_id") == a.id)
+                      .order_by(m.File.id)).all()
 
 
 def place_file(link: m.Participation | None, f: m.File) -> None:

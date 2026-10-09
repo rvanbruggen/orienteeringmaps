@@ -3,6 +3,7 @@
 Map ─< MapVersion ─< Event ─< Course
                      └─< Participation (you ran it) >─ StravaActivity
              └─< File ─< Page
+ImportTask ─< ImportItem >─ File, StravaActivity (a scan being imported, and the run it was matched to)
 
 A File (PDF or image) belongs to a MapVersion, or to nobody yet (the inbox).
 A Course can point at a File, and at a page within it (multi-page PDFs).
@@ -307,3 +308,46 @@ class OpunchEvent(Base):
     ran: Mapped[int] = mapped_column(Integer, default=0)  # "I ran this", also without a map in the library
     first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ImportTask(Base):
+    """A batch of scans uploaded together, processed in the background and then reviewed.
+
+    With match_by_date, a file name starting with YYYYMMDD is matched to your Strava run
+    of that day, and the scan is filed with that run (see imports.py).
+    """
+    __tablename__ = "import_tasks"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    match_by_date: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    items: Mapped[list["ImportItem"]] = relationship(back_populates="task", cascade="all, delete-orphan",
+                                                   order_by="ImportItem.original_name")
+
+
+class ImportItem(Base):
+    """One file of an import task: waiting to be processed, then matched to a run and reviewed."""
+    __tablename__ = "import_items"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    task_id: Mapped[int] = mapped_column(ForeignKey("import_tasks.id", ondelete="CASCADE"), index=True)
+    original_name: Mapped[str] = mapped_column(String(500))
+    path: Mapped[str | None] = mapped_column(String(1000))  # where the file waits to be processed
+    owned: Mapped[int] = mapped_column(Integer, default=1)  # 1 = our copy in STAGING_DIR, removed once processed
+    size_bytes: Mapped[int | None] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(20), default="queued")  # queued | processing | done | duplicate | error
+    error: Mapped[str | None] = mapped_column(Text)
+    file_id: Mapped[int | None] = mapped_column(ForeignKey("files.id", ondelete="SET NULL"))
+    day: Mapped[str | None] = mapped_column(String(10))  # from the file name
+    # no_date | no_run | several | one | linked (the run was linked already) | auto_linked; None = not matched
+    outcome: Mapped[str | None] = mapped_column(String(20))
+    activity_id: Mapped[int | None] = mapped_column(ForeignKey("strava_activities.id", ondelete="SET NULL"))
+    candidates: Mapped[list | None] = mapped_column(JSON)  # activity ids, when several runs that day
+    note: Mapped[str | None] = mapped_column(Text)  # what was done automatically
+    review: Mapped[str] = mapped_column(String(20), default="open")  # open | confirmed | set_aside
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    task: Mapped[ImportTask] = relationship(back_populates="items")
+    file: Mapped[File | None] = relationship()
+    activity: Mapped[StravaActivity | None] = relationship()

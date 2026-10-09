@@ -13,6 +13,8 @@
   import Publish from './routes/Publish.svelte'
   import Runs from './routes/Runs.svelte'
   import Races from './routes/Races.svelte'
+  import Imports from './routes/Imports.svelte'
+  import ImportTask from './routes/ImportTask.svelte'
 
   onMount(() => {
     refreshMeta()
@@ -21,6 +23,7 @@
 
   const mapMatch = $derived(route.path.match(/^\/map\/(\d+)$/))
   const placeMatch = $derived(route.path.match(/^\/place\/(\d+)$/))
+  const importMatch = $derived(route.path.match(/^\/imports\/(\d+)$/))
   const active = (p) => (p === '/' ? route.path === '/' || mapMatch : route.path.startsWith(p))
 </script>
 
@@ -40,6 +43,9 @@
     <a href="#/events" class:active={active('/events')}>Events</a>
     <a href="#/runs" class:active={active('/runs')}>Runs</a>
     <a href="#/races" class:active={active('/races')}>Races</a>
+    <a href="#/imports" class:active={active('/imports')}>
+      Imports {#if meta.counts.imports}<span class="count badge" title="Imported scans to review">{meta.counts.imports}</span>{/if}
+    </a>
     <a href="#/insights" class:active={active('/insights')}>Insights</a>
     <a href="#/clubs" class:active={active('/clubs')}>Clubs</a>
     <a href="#/publish" class:active={active('/publish')}>Publish</a>
@@ -51,6 +57,10 @@
   {#key placeMatch[1]}<Georef pageId={+placeMatch[1]} />{/key}
 {:else if mapMatch}
   {#key mapMatch[1]}<MapDetail id={+mapMatch[1]} />{/key}
+{:else if importMatch}
+  {#key importMatch[1]}<ImportTask id={+importMatch[1]} />{/key}
+{:else if route.path === '/imports'}
+  <Imports />
 {:else if route.path === '/upload'}
   <Upload />
 {:else if route.path === '/inbox'}

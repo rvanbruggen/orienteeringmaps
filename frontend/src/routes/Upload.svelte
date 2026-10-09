@@ -54,6 +54,7 @@
 <main class="page">
   <h1>Add maps</h1>
   <p class="muted">PDFs and images (PNG, JPG, TIFF, HEIC, …). Each file is stored unchanged; pages are rendered and the text on the map is read to pre-fill the details.</p>
+  <p class="muted">Many scans at once, or scans named by date (<code>YYYYMMDD …</code>) to match to your Strava runs? Use an <a href="#/imports">import</a>: it is processed on the server, and you review the scans afterwards.</p>
 
   <div class="drop" class:dragging role="button" tabindex="0"
     ondragover={(e) => { e.preventDefault(); dragging = true }} ondragleave={() => (dragging = false)} {ondrop}
@@ -94,4 +95,5 @@
   .nm { overflow-wrap: anywhere; }
   .err { color: var(--danger); font-size: .9rem; }
   progress { width: 140px; accent-color: var(--accent); }
+  code { font-family: var(--mono); font-size: .9em; }
 </style>

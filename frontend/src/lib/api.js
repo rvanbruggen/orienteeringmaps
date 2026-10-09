@@ -27,11 +27,12 @@ export const api = {
   del: (url) => request('DELETE', url),
 }
 
-/** Upload one file with progress callbacks: onProgress(fraction 0..1). Resolves to an UploadResult. */
-export function uploadFile(file, onProgress) {
+/** Upload one file with progress callbacks: onProgress(fraction 0..1). Resolves to the first result
+ *  (an UploadResult for /api/files, an import item for /api/imports/{id}/files). */
+export function uploadFile(file, onProgress, url = '/api/files') {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
-    xhr.open('POST', '/api/files')
+    xhr.open('POST', url)
     xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total)
     xhr.upload.onload = () => onProgress?.(1)
     xhr.onload = () => {

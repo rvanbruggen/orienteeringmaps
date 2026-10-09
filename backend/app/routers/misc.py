@@ -26,10 +26,13 @@ router = APIRouter(prefix="/api", tags=["misc"])
 def meta(db: Session = Depends(get_session)):
     count = lambda model: db.scalar(select(func.count()).select_from(model)) or 0  # noqa: E731
     inbox = db.scalar(select(func.count()).select_from(m.File).where(m.File.map_version_id.is_(None))) or 0
+    # Imported files that wait for you: processed (or failed) and not yet confirmed or set aside.
+    to_review = db.scalar(select(func.count()).select_from(m.ImportItem).where(
+        m.ImportItem.review == "open", m.ImportItem.status.in_(("done", "duplicate", "error")))) or 0
     return {
         "version": __version__,
         "counts": {"maps": count(m.Map), "files": count(m.File), "events": count(m.Event),
-                   "clubs": count(m.Club), "inbox": inbox},
+                   "clubs": count(m.Club), "inbox": inbox, "imports": to_review},
         "enums": {"map_types": s.MAP_TYPES, "file_kinds": s.FILE_KINDS, "event_types": s.EVENT_TYPES,
                   "disciplines": s.DISCIPLINES, "standards": s.STANDARDS, "publish_levels": s.PUBLISH_LEVELS},
     }

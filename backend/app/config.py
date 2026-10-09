@@ -9,6 +9,12 @@ ORIGINALS_DIR = DATA_DIR / "originals"
 # Rendered pages and thumbnails: can always be regenerated from the originals.
 DERIVED_DIR = DATA_DIR / "derived"
 
+# Import tasks: uploaded files wait here until the background worker has processed them.
+STAGING_DIR = DATA_DIR / "staging"
+# A folder on the server with scans to import (mounted read-only in Docker), offered on the Imports page.
+IMPORT_DIR = Path(os.environ.get("OMAPS_IMPORT_DIR", "/import" if Path("/import").is_dir() else Path(__file__).resolve().parents[2] / "import"))
+IMPORT_WORKER = os.environ.get("OMAPS_IMPORT_WORKER", "1") not in ("0", "false", "no", "")
+
 # Static frontend build (served by FastAPI in the Docker image).
 FRONTEND_DIST = Path(os.environ.get("OMAPS_FRONTEND_DIST", Path(__file__).resolve().parents[2] / "frontend" / "dist"))
 
@@ -48,5 +54,5 @@ GEOCODER_UA = "orienteeringmaps/1 (personal map library; github.com/rvanbruggen/
 
 
 def ensure_dirs() -> None:
-    for d in (DATA_DIR, ORIGINALS_DIR, DERIVED_DIR):
+    for d in (DATA_DIR, ORIGINALS_DIR, DERIVED_DIR, STAGING_DIR):
         d.mkdir(parents=True, exist_ok=True)

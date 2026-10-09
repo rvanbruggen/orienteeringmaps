@@ -7,7 +7,8 @@
   import { meta, notify, refreshMeta } from '../lib/stores.svelte.js'
   import { fmtDate, fmtDistance, fmtDuration, label, versionName } from '../lib/format.js'
 
-  let { activity, open = $bindable(false), onsaved } = $props()
+  // scan: a library file to show next to the run (the Imports page links the run of a scan).
+  let { activity, scan = null, open = $bindable(false), onsaved } = $props()
 
   let loading = $state(true), busy = $state(false)
   let choices = $state([])            // maps offered, each with its events and courses
@@ -195,10 +196,16 @@
 
 <Modal title="Link run" bind:open wide>
   {#if activity}
-    <p class="act">
-      <strong>{activity.name}</strong><br />
-      <span class="muted">{fmtDate(day)} · {fmtDistance(activity.distance_m)} · {fmtDuration(activity.moving_time_s)}</span>
-    </p>
+    <div class="head">
+      {#if scan?.thumb_url}
+        <a class="scan" href={scan.original_url} target="_blank" rel="noopener" title="Open {scan.original_name}"><img src={scan.thumb_url} alt="Scan {scan.original_name}" /></a>
+      {/if}
+      <p class="act">
+        <strong>{activity.name}</strong><br />
+        <span class="muted">{fmtDate(day)} · {fmtDistance(activity.distance_m)} · {fmtDuration(activity.moving_time_s)}</span>
+        {#if scan}<br /><span class="muted small">Scan: {scan.original_name}</span>{/if}
+      </p>
+    </div>
   {/if}
   {#if loading}
     <p class="muted">Looking for maps along your route…</p>
@@ -391,6 +398,9 @@
   select { width: auto; }
   .cname { flex: 1 1 200px; width: auto; }
   .km { width: 6rem; }
+  .head { display: flex; gap: .9rem; align-items: flex-start; }
+  .scan { flex: none; width: 90px; aspect-ratio: 3 / 4; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: var(--surface-2); }
+  .scan img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .6rem; margin-bottom: .4rem; }
   figure { margin: 0; border: 2px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface-2); }
   figure.on { border-color: var(--accent); }

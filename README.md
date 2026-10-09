@@ -52,6 +52,14 @@ A personal library for orienteering maps: upload PDFs and images, record each ma
   - When linking a run, the race on O'Punch that day nearest to where you started is offered next to the map's events, and makes the event in one click. The Runs page shows the race as a suggestion too.
   - The Library's Map view shows races as small pins (blue; orange when you ran them; paler when still to come) next to your maps, so a map can be placed where its race was held.
   - Races stay in the app and are not put on the public site. Pulling the calendar can be turned off with `OMAPS_OPUNCH_AUTO_PULL=0`.
+- **Imports** (v0.12): bring in a batch of scans, such as an archive of a few hundred PDFs, and file them one by one.
+  - Create an import, then drop the files on it, or pick a folder from the server's `./import` folder (read in place, no upload). Uploading only stores the files: a background worker on the server renders them and reads their text, so you can close the browser once the upload is done. A restart picks up where it stopped.
+  - A file name that starts with the date (`YYYYMMDD …`) is matched to your Strava run of that day (orienteering runs first; otherwise runs and walks that aren't commutes):
+    - Run already linked to an event: the scan goes onto that event's map. Done.
+    - Run not linked, and its route lies clearly on one placed map: the run is linked for you, to that day's event on the map, else that day's O'Punch race, else an open permanent course, else a new event named after the run. The scan goes with it, marked *linked for you* to check.
+    - Otherwise the scan waits, tagged with its run (or the runs to choose from when there were several that day).
+  - Each import has its own review list, grouped as **Choose the run**, **Check**, **Link the run**, **No run found**, **Failed**, **Set aside** and **Done**. Linking a run in the link dialog (which shows the scan) takes the scan along onto the map. For scans without a match, choose a run near a date by hand, add the scan to a map, make a new map, or set it aside.
+  - The **Imports** tab shows how many scans wait for review. Deleting an import keeps the files already in the library.
 
 ## Run with Docker
 
@@ -68,10 +76,13 @@ The app listens on port 8420. All state lives in `./data` on the host:
 | `data/originals/` | uploaded files, named by SHA-256 | yes |
 | `data/derived/` | rendered pages and thumbnails | no — rebuild with `rerender` |
 | `data/publish/` | public site preview and the checkout that is pushed | no — rebuilt at the next publish |
+| `data/staging/` | uploaded files of an import, until the worker has processed them | no — emptied as files are processed |
 
 ### Bulk import
 
-Copy a folder of maps into `./import` on the host, then:
+The easiest way is the **Imports** page (see above): create an import and pick a folder of `./import` on the host, or drop the files in the browser. Processing runs in the background.
+
+The older command-line import is still there. It creates maps right away (one per group of files) instead of matching scans to runs. Copy a folder of maps into `./import` on the host, then:
 
 ```bash
 docker compose exec orienteeringmaps python -m app.cli import /import

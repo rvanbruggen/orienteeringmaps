@@ -147,6 +147,35 @@ MIGRATIONS: list[str] = [
     );
     CREATE INDEX ix_opunch_events_date ON opunch_events (date)
     """,
+    # 10 -> 11 (v0.12.0): import tasks
+    """
+    CREATE TABLE import_tasks (
+        id INTEGER NOT NULL PRIMARY KEY,
+        name VARCHAR(200) NOT NULL,
+        match_by_date INTEGER NOT NULL,
+        created_at DATETIME NOT NULL
+    );
+    CREATE TABLE import_items (
+        id INTEGER NOT NULL PRIMARY KEY,
+        task_id INTEGER NOT NULL REFERENCES import_tasks (id) ON DELETE CASCADE,
+        original_name VARCHAR(500) NOT NULL,
+        path VARCHAR(1000),
+        owned INTEGER NOT NULL,
+        size_bytes INTEGER,
+        status VARCHAR(20) NOT NULL,
+        error TEXT,
+        file_id INTEGER REFERENCES files (id) ON DELETE SET NULL,
+        day VARCHAR(10),
+        outcome VARCHAR(20),
+        activity_id INTEGER REFERENCES strava_activities (id) ON DELETE SET NULL,
+        candidates JSON,
+        note TEXT,
+        review VARCHAR(20) NOT NULL,
+        created_at DATETIME NOT NULL,
+        processed_at DATETIME
+    );
+    CREATE INDEX ix_import_items_task_id ON import_items (task_id)
+    """,
 ]
 
 

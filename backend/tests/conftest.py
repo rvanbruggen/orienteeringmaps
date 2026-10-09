@@ -10,6 +10,8 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("OMAPS_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setenv("OMAPS_FRONTEND_DIST", str(tmp_path / "no-dist"))
     monkeypatch.setenv("OMAPS_OPUNCH_AUTO_PULL", "0")  # no network from the test app
+    monkeypatch.setenv("OMAPS_IMPORT_WORKER", "0")  # tests process imports themselves
+    monkeypatch.setenv("OMAPS_IMPORT_DIR", str(tmp_path / "import"))
     from app import config
     importlib.reload(config)
     from app import main

@@ -1,6 +1,6 @@
 # Orienteering Map Manager — Proposed Plan
 
-Status: **Phase 7 built (v0.11.0)**: races from the O'Punch calendar, pulled daily, tied to map events and runs, on the explorer map (§11); Phase 6 (Strava: import, linking, photos, route, replay and leg splits, §10) before it. Version compare and live GPS are not on the roadmap for now.
+Status: **Phase 8 built (v0.12.0)**: import tasks, a batch of scans processed in the background, matched to your Strava runs by the date in the file name, and reviewed one by one (§12); Phase 7 (races from the O'Punch calendar, §11) and Phase 6 (Strava: import, linking, photos, route, replay and leg splits, §10) before it. Version compare and live GPS are not on the roadmap for now.
 
 ## 0. Decisions so far
 
@@ -148,6 +148,7 @@ Ordered by my guess at value for you:
 | **5. Public site** ✅ v0.5.0 | Static site on GitHub Pages with per-map publish levels (see PLAN-public-site.md) | Public map explorer |
 | **6. Strava** ✅ v0.10.0 | Import your Strava activities, link races to maps and events, and draw your route on the map (§10) | Personal race history with routes |
 | **7. O'Punch races** ✅ v0.11.0 | Pull the Belgian orienteering calendar daily, keep every race, mark the ones you ran, tie races to map events and runs, and show them on the explorer map (§11) | Race history with locations, independent of your maps |
+| **8. Import tasks** ✅ v0.12.0 | Upload a batch of scans (or read a server folder), process it in the background, match scans named `YYYYMMDD …` to that day's Strava run, link runs on placed maps automatically, and review each scan in its own list (§12) | An archive of a few hundred scans filed against your runs |
 
 Docker deployment to the Mint box is part of Phase 1, so every phase can be used on the real server straight away.
 
@@ -235,3 +236,25 @@ No API key, no account and no AI: the feed is parsed by a small iCalendar reader
 - Reading the "Series" box of a race page to find the earlier editions of a recurring race.
 - Marking a race as run from the Runs page without a map (today: tick "I ran this" on the Races page).
 - Cancelled races: the feed does not flag them.
+
+## 12. Import tasks (Phase 8)
+
+The archive holds about 300 PDF scans whose names start with the date of the event (`YYYYMMDD …`). Most of those days have exactly one orienteering run on Strava, so the date is enough to tie a scan to its run, and the run's route often tells which map it is. The existing upload processes each file while the browser waits, and the command-line import creates a map per group of files, which for 300 scans of maybe 80 terrains would make many duplicate maps. An import task does it differently: upload first, process in the background, file the scan through its run, and review each scan in a list of its own rather than among all your Strava activities.
+
+### Design
+
+- **`import_tasks`** (name, `match_by_date`) and **`import_items`**: one row per file, with where it waits (`path`; `owned` = our copy in `data/staging/<task>/`, removed once processed, or a file read in place from the server's import folder), `status` (queued, processing, done, duplicate, error), the library `file_id`, the `day` read from the name, the `outcome` of the match (no_date, no_run, several, one, linked, auto_linked), the `activity_id`, the `candidates` when several runs fit, a `note` on what was done automatically, and the `review` state (open, confirmed, set_aside).
+- **Adding files**: `POST /api/imports/{id}/files` only stores each file; the page uploads them one by one with progress and warns before leaving while uploads are still going. `POST /api/imports/{id}/folder` queues every PDF and image in a folder of `OMAPS_IMPORT_DIR` (`/import` in Docker), refusing paths outside it.
+- **Worker**: a daemon thread started with the app (`OMAPS_IMPORT_WORKER=0` turns it off; the tests do and call `imports.process_all` instead). It takes the oldest queued item, runs the normal ingest (duplicate check, rendering, text), then the match. It wakes on new uploads and checks every minute; items still marked *processing* at start-up (a restart) are queued again. A failing file is marked *error* with the reason and doesn't stop the queue. Matching uses only stored data (the route outline from the activity list), so the worker makes no Strava requests.
+- **Matching**: the runs on the day (the run's local start date): the orienteering ones if there are any, else runs, trail runs, walks and hikes that are not commutes. None: *no run*. Several: *choose*. One:
+  - already linked to an event: the scan is attached to that event's map version (and becomes the course's file if it is a course map and the course has none): *linked*, confirmed straight away;
+  - else, if the route lies on exactly one placed map, for at least half of its points: the run is linked through the same code as the link dialog. It uses the map version in use that day, and the map's event on that day; else the O'Punch race of the day near the start (an existing event tied to it, or a new one made from it); else the one open permanent course; else a new event named after the run. Two events that day, or several open courses and no race: not linked. The scan goes with it: *auto-linked*, to check;
+  - else the scan stays in the inbox, tagged with the run (`files.suggestions.strava_activity_id`, as photos imported from Strava are), and so does the run's route in the placing editor.
+- **Linking a run takes its files along**: when a run is linked (dialog or automatically), every file tagged with that run that is still in the inbox moves onto the event's map version, and a course map among them becomes the course's file if it has none. This now also covers Strava photos left in the inbox.
+- **Review**: each item is in one group, worked out from its state: waiting, error, choose (several runs, none chosen), check (the scan is on a map or its run is linked, not yet confirmed), link (a run, not linked), file (no run), aside, done. Choosing a run (`PUT /api/imports/items/{id}/run`) files the scan as a date match would, including the automatic link; taking it off returns it to *file*. Filing a scan in a dialog on the page (link dialog, add to a map, new map) confirms it. The nav shows the number of processed items still open.
+
+### Not done (yet)
+
+- Matching scans without a date in the name by their content (map name read from the scan against the runs' names).
+- Two scans of one day for two maps (a double race day): both go with the one run; file the second by hand.
+- Re-linking a run to another map does not move scans already placed on the first map.
