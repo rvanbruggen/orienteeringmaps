@@ -1,6 +1,6 @@
 # Orienteering Map Manager — Proposed Plan
 
-Status: **Phase 6 built (v0.10.3)**: Strava import, linking runs to maps and events, photos from Strava, your route on the map, replay and leg splits (§10). Version compare and live GPS are not on the roadmap for now.
+Status: **Phase 7 built (v0.11.0)**: races from the O'Punch calendar, pulled daily, tied to map events and runs, on the explorer map (§11); Phase 6 (Strava: import, linking, photos, route, replay and leg splits, §10) before it. Version compare and live GPS are not on the roadmap for now.
 
 ## 0. Decisions so far
 
