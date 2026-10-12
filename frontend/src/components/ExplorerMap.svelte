@@ -1,6 +1,7 @@
 <script>
   // All (filtered) maps on one map: outlines for placed maps, pins for maps with
   // only a location. Zoomed in, the placed map images themselves are shown.
+  // A map in several parts (submaps) gets an outline and an image per part.
   import { onMount, onDestroy, untrack } from 'svelte'
   import L from 'leaflet'
   import { addBasemaps } from '../lib/basemaps.js'
@@ -25,7 +26,7 @@
   const images = L.layerGroup()
   const racePins = L.layerGroup()
   let byId = new Map() // map id -> leaflet layer
-  let imageLayers = new Map() // map id -> WarpedImage
+  let imageLayers = new Map() // map id -> layer group of WarpedImages, one per part
   let inView = $state([])
   let onlyInView = $state(true)
   let showImages = $state(load(IMAGES_KEY, true))
@@ -40,6 +41,9 @@
   function save(key, v) {
     try { localStorage.setItem(key, JSON.stringify(v)) } catch { /* ignore */ }
   }
+
+  // The placed parts of a map: [{label, footprint, overlay}]; older data has only footprint/overlay.
+  const partsOf = (m) => m.parts?.length ? m.parts : m.footprint ? [{ label: null, footprint: m.footprint, overlay: m.overlay }] : []
 
   const located = $derived(maps.filter((m) => m.footprint || m.lat != null))
   const unlocated = $derived(maps.length - located.length)
@@ -80,11 +84,13 @@
     for (const m of located) {
       let layer
       if (m.footprint) {
-        layer = L.polygon(m.footprint, { color: '#a626a4', weight: 2, fillColor: '#a626a4', fillOpacity: 0.12 })
+        layer = L.featureGroup(partsOf(m).map((p) =>
+          L.polygon(p.footprint, { color: '#a626a4', weight: 2, fillColor: '#a626a4', fillOpacity: 0.12 })
+            .bindTooltip(p.label ? `${m.name} · ${p.label}` : m.name, { direction: 'top', sticky: true })))
       } else {
         layer = L.circleMarker([m.lat, m.lon], { radius: 7, color: '#fff', weight: 2, fillColor: '#f26a1b', fillOpacity: 1 })
+          .bindTooltip(m.name, { direction: 'top' })
       }
-      layer.bindTooltip(m.name, { direction: 'top', sticky: !!m.footprint })
       layer.bindPopup(popupHtml(m), { maxWidth: 300, minWidth: 220 })
       layer.on('mouseover', () => (hovered = m.id))
       layer.on('mouseout', () => (hovered = null))
@@ -105,8 +111,9 @@
     const want = new Set()
     if (showImages && map.getZoom() >= IMAGE_MIN_ZOOM) {
       const c = map.getCenter()
-      inView.filter((m) => m.overlay)
-        .sort((a, b2) => c.distanceTo(byId.get(a.id).getCenter()) - c.distanceTo(byId.get(b2.id).getCenter()))
+      const mid = (m) => byId.get(m.id).getBounds().getCenter()
+      inView.filter((m) => partsOf(m).some((p) => p.overlay))
+        .sort((a, b2) => c.distanceTo(mid(a)) - c.distanceTo(mid(b2)))
         .slice(0, MAX_IMAGES).forEach((m) => want.add(m.id))
     }
     for (const [id, layer] of imageLayers) {
@@ -114,8 +121,8 @@
     }
     for (const id of want) {
       if (imageLayers.has(id)) continue
-      const o = located.find((m) => m.id === id).overlay
-      const layer = new WarpedImage(o.image_url, o.width, o.height, o.corners, { opacity, clip: o.clip })
+      const layer = L.layerGroup(partsOf(located.find((m) => m.id === id)).filter((p) => p.overlay).map(({ overlay: o }) =>
+        new WarpedImage(o.image_url, o.width, o.height, o.corners, { opacity, clip: o.clip })))
       images.addLayer(layer)
       imageLayers.set(id, layer)
     }
@@ -164,7 +171,7 @@
   $effect(() => {
     const o = opacity
     save(OPACITY_KEY, o)
-    untrack(() => imageLayers.forEach((layer) => layer.setOpacity(o)))
+    untrack(() => imageLayers.forEach((group) => group.eachLayer((layer) => layer.setOpacity(o))))
   })
   $effect(() => {
     save(IMAGES_KEY, showImages)
@@ -174,7 +181,7 @@
     const id = hovered
     untrack(() => {
       for (const [mid, layer] of byId) {
-        if (layer.setStyle) layer.setStyle(mid === id ? { weight: 4, fillOpacity: 0.3 } : { weight: 2, fillOpacity: layer instanceof L.Polygon ? 0.12 : 1 })
+        if (layer.setStyle) layer.setStyle(mid === id ? { weight: 4, fillOpacity: 0.3 } : { weight: 2, fillOpacity: layer instanceof L.FeatureGroup ? 0.12 : 1 })
       }
     })
   })

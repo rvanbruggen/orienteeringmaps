@@ -82,6 +82,8 @@ def build_kmz(title: str, items: list[tuple[m.Map, list[m.Page]]]) -> bytes:
                 z.writestr(href, data, compress_type=zipfile.ZIP_STORED)
                 tl, tr, br, bl = page.georef.corners
                 label = page.file.original_name + (f" p{page.page_no}" if page.file.page_count > 1 else "")
+                if page.submap:
+                    label += f" ({services.submap_label(page)})"
                 parts.append(
                     f"<GroundOverlay><name>{escape(label)}</name><Icon><href>{href}</href></Icon>"
                     f"<gx:LatLonQuad><coordinates>{_coord(*bl)} {_coord(*br)} {_coord(*tr)} {_coord(*tl)}"
@@ -110,9 +112,12 @@ def build_geojson(maps: list[m.Map]) -> dict:
         props = {k: summary.get(k) for k in ("id", "name", "location", "map_type", "club_name", "scale",
                                              "contour_interval", "last_survey", "last_event", "tags")}
         if summary["footprint"]:
-            ring = [[lon, lat] for lat, lon in summary["footprint"]]
-            ring.append(ring[0])
-            geom = {"type": "Polygon", "coordinates": [ring]}
+            rings = []
+            for part in summary["parts"]:
+                ring = [[lon, lat] for lat, lon in part["footprint"]]
+                rings.append([ring + [ring[0]]])
+            geom = ({"type": "Polygon", "coordinates": rings[0]} if len(rings) == 1
+                    else {"type": "MultiPolygon", "coordinates": rings})
         elif mp.lat is not None:
             geom = {"type": "Point", "coordinates": [mp.lon, mp.lat]}
         else:

@@ -26,7 +26,9 @@
       if (p.place) out.push({ key: `${f.key}-${p.no}`, image_url: p.img, width: p.w, height: p.h, corners: p.place.corners, clip: p.place.clip,
         label: `${versionTitle(v)} · ${f.name}${(f.pages?.length ?? 0) > 1 ? ` · p${p.no}` : ''}` })
     }
-    if (!out.length && map.hero?.place) {
+    if (!out.length && map.parts.some((p) => p.overlay)) {
+      map.parts.forEach((p, i) => p.overlay && out.push({ key: `part-${i}`, ...p.overlay, label: p.label ? `${map.name} · ${p.label}` : map.name }))
+    } else if (!out.length && map.hero?.place) {
       const h = map.hero
       out.push({ key: 'hero', image_url: h.img, width: h.w, height: h.h, corners: h.place.corners, clip: h.place.clip, label: map.name })
     }
@@ -100,7 +102,7 @@
     {:else if map.centre}
       <section>
         <h2>Location</h2>
-        <LocationMap footprint={map.footprint} lat={map.lat} lon={map.lon} />
+        <LocationMap footprint={map.footprint} parts={map.parts} lat={map.lat} lon={map.lon} />
       </section>
     {/if}
 

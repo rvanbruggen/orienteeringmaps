@@ -153,7 +153,7 @@ def map_kmz(map_id: int, page_id: int | None = None, all_pages: bool = False, db
     elif all_pages:
         pages = placed
     else:
-        pages = [p] if (p := services.primary_page(mp)) else []
+        pages = services.primary_pages(mp)
     if not pages:
         raise HTTPException(404, "This map has no placed pages")
     data = kml.build_kmz(mp.name, [(mp, pages)])

@@ -74,6 +74,13 @@ class PageOut(_Out):
     image_url: str
     thumb_url: str
     georef: GeorefSummary | None = None
+    submap: bool = False
+    submap_label: str | None = None
+
+
+class PageUpdate(_In):
+    submap: bool | None = None
+    submap_label: str | None = Field(None, max_length=100)
 
 
 class FileOut(_Out):
@@ -322,6 +329,8 @@ class MapSummary(BaseModel):
     placed_count: int = 0
     footprint: list[list[float]] | None = None  # [[lat, lon]] outline of the main placed page
     overlay: dict | None = None  # main placed page: {page_id, image_url, width, height, corners, clip}
+    # Every placed page shown on the overview: the main one, or all placed submaps of the picture file.
+    parts: list[dict] = []  # [{page_id, label, footprint, overlay}]
     thumb_url: str | None
     cover_file_id: int | None = None  # the file shown as the map's picture
     updated_at: datetime
@@ -391,6 +400,7 @@ class GeorefContext(BaseModel):
     exif_lat: float | None
     exif_lon: float | None
     same_layout_pages: list[PageOut]  # other pages of this file with identical size
+    file_pages: list[PageOut] = []  # every page of this file, to switch between them
     other_placed: list[dict]  # other placed pages of this map, for reference
     runs: list[dict] = []  # your runs with a GPS track on this map (or the run a Strava photo came from)
     georef: GeorefOut | None

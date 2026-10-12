@@ -85,13 +85,13 @@ def export_all(include_files: bool = True, db: Session = Depends(get_session)):
 
 @router.get("/export/kmz")
 def export_kmz(db: Session = Depends(get_session)):
-    """All maps for Google Earth: the main placed page of each, plus pins for maps with only a location."""
+    """All maps for Google Earth: the main placed page (or submaps) of each, plus pins for maps with only a location."""
     maps = db.scalars(select(m.Map).options(*services.MAP_LOAD).order_by(m.Map.name)).all()
     items = []
     for mp in maps:
-        page = services.primary_page(mp)
-        if page or mp.lat is not None:
-            items.append((mp, [page] if page else []))
+        pages = services.primary_pages(mp)
+        if pages or mp.lat is not None:
+            items.append((mp, pages))
     data = kml.build_kmz("Orienteering maps", items)
     stamp = datetime.now().strftime("%Y%m%d")
     return Response(data, media_type="application/vnd.google-earth.kmz",

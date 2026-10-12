@@ -66,7 +66,7 @@ def _context(db: Session, page: m.Page) -> s.GeorefContext:
         stated_scale=stated, exif_lat=f.exif_lat, exif_lon=f.exif_lon,
         same_layout_pages=[services.page_out(p) for p in f.pages
                            if p.id != page.id and (p.width, p.height) == (page.width, page.height)],
-        other_placed=others[:20], georef=_georef_out(page.georef), runs=my_runs,
+        file_pages=[services.page_out(p) for p in f.pages], other_placed=others[:20], georef=_georef_out(page.georef), runs=my_runs,
     )
 
 
@@ -133,3 +133,16 @@ def delete_georef(page_id: int, db: Session = Depends(get_session)):
     if page.georef:
         db.delete(page.georef)
         db.commit()
+
+
+@router.patch("/pages/{page_id}", response_model=s.PageOut)
+def update_page(page_id: int, data: s.PageUpdate, db: Session = Depends(get_session)):
+    """Mark a page as a submap (a separate part of the map), and name it."""
+    page = _load_page(db, page_id)
+    fields = data.model_dump(exclude_unset=True)
+    if "submap" in fields:
+        page.submap = int(bool(fields["submap"]))
+    if "submap_label" in fields:
+        page.submap_label = fields["submap_label"] or None
+    db.commit()
+    return services.page_out(page)

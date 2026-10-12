@@ -181,3 +181,41 @@ def test_bulk_update_maps(client):
 def test_missing_media_is_not_cached(client):
     r = client.get("/media/00/nope/p1.webp")
     assert r.status_code == 404 and "immutable" not in r.headers.get("cache-control", "")
+
+
+def test_submaps_show_every_part(client):
+    from tests.test_georef import synth
+    f = upload(client, "two-halves.pdf", make_pdf("Schaal 1/5.000", pages=3))["file"]
+    mp = client.post("/api/maps", json={"name": "Two halves", "file_ids": [f["id"]]}).json()
+    p1, p2, p3 = f["pages"]
+    w, h = p1["width"], p1["height"]
+    corners = [(50, 60), (w - 40, 80), (w - 60, h - 50)]
+    client.put(f"/api/pages/{p1['id']}/georef", json={"points": synth(corners)})
+    client.put(f"/api/pages/{p2['id']}/georef", json={"points": synth(corners, origin=(50.89, 4.71))})
+
+    def summary():
+        return next(m for m in client.get("/api/maps").json() if m["id"] == mp["id"])
+
+    # Without submaps, only the main placed page represents the map (the other pages are other courses).
+    s = summary()
+    assert [p["page_id"] for p in s["parts"]] == [p1["id"]] and s["overlay"]["page_id"] == p1["id"]
+
+    r = client.patch(f"/api/pages/{p1['id']}", json={"submap": True, "submap_label": "South"})
+    assert r.status_code == 200 and r.json()["submap"] and r.json()["submap_label"] == "South"
+    client.patch(f"/api/pages/{p2['id']}", json={"submap": True})
+    client.patch(f"/api/pages/{p3['id']}", json={"submap": True})  # not placed: not shown
+    s = summary()
+    assert [(p["page_id"], p["label"]) for p in s["parts"]] == [(p1["id"], "South"), (p2["id"], "Part 2")]
+    assert s["footprint"] == s["parts"][0]["footprint"] and all(p["overlay"] for p in s["parts"])
+
+    geo = client.get("/api/export/geojson").json()
+    feat = next(x for x in geo["features"] if x["properties"]["id"] == mp["id"])
+    assert feat["geometry"]["type"] == "MultiPolygon" and len(feat["geometry"]["coordinates"]) == 2
+
+    ctx = client.get(f"/api/pages/{p2['id']}/georef").json()
+    assert [p["page_no"] for p in ctx["file_pages"]] == [1, 2, 3] and ctx["page"]["submap"]
+
+    client.patch(f"/api/pages/{p1['id']}", json={"submap_label": ""})
+    client.patch(f"/api/pages/{p2['id']}", json={"submap": False})
+    s = summary()
+    assert [(p["page_id"], p["label"]) for p in s["parts"]] == [(p1["id"], "Part 1")]

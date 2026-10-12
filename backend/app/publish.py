@@ -177,6 +177,16 @@ def _map(site: Site, mp: m.Map) -> dict:
         if page:
             rec["hero"] = page
             rec["thumb"] = page["thumb"]
+    # A map in several placed parts (submaps): every part's outline, and image when the level shows it.
+    if len(summary["parts"]) > 1:
+        by_id = {p.id: p for p in services.primary_pages(mp)}
+        parts = []
+        for part in summary["parts"]:
+            d = {"label": part["label"], "footprint": part["footprint"]}
+            if level in ("overlay", "full") and (img := _page(site, by_id[part["page_id"]])):
+                d["page"] = img
+            parts.append(d)
+        rec["parts"] = parts
     files_ok = level == "full"
     versions = []
     for v in sorted(mp.versions, key=lambda v: (_sort_key(v.survey_date), v.id), reverse=True):

@@ -49,7 +49,7 @@
 
   const placed = $derived(maps.filter((m) => m.footprint))
   const located = $derived(maps.filter((m) => m.footprint || m.lat != null))
-  const area = $derived(placed.reduce((a, m) => a + areaKm2(m.footprint), 0))
+  const area = $derived(placed.reduce((a, m) => a + (m.parts?.length ? m.parts.reduce((b, p) => b + areaKm2(p.footprint), 0) : areaKm2(m.footprint)), 0))
   const courses = $derived(events.reduce((a, e) => a + e.course_count, 0))
   const clubCount = $derived(new Set(maps.map((m) => m.club_name).filter(Boolean)).size)
   const oldest = $derived(maps.filter((m) => m.last_survey).sort((a, b) => a.last_survey.localeCompare(b.last_survey))[0])
@@ -121,7 +121,8 @@
       const b = ageBucket(m)
       const tip = `${m.name} · ${m.last_survey ? `survey ${fmtDate(m.last_survey)}` : 'survey date unknown'}`
       const layer = m.footprint
-        ? L.polygon(m.footprint, { color: b.color, weight: 2, fillColor: b.color, fillOpacity: 0.45 })
+        ? L.featureGroup((m.parts?.length ? m.parts.map((p) => p.footprint) : [m.footprint])
+          .map((fp) => L.polygon(fp, { color: b.color, weight: 2, fillColor: b.color, fillOpacity: 0.45 })))
         : L.circleMarker([m.lat, m.lon], { radius: 7, color: '#fff', weight: 2, fillColor: b.color, fillOpacity: 1 })
       layer.bindTooltip(tip).on('click', () => (location.hash = `#/map/${m.id}`)).addTo(group)
     }

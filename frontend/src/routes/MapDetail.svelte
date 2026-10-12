@@ -64,7 +64,7 @@
   const overlays = $derived(map ? map.versions.flatMap((v) => v.files.flatMap((f) => f.pages.filter((p) => p.georef).map((p) => ({
     key: p.id, page_id: p.id, image_url: p.image_url, width: p.width, height: p.height,
     corners: p.georef.corners, clip: p.georef.clip,
-    label: `${versionTitle(v)} · ${f.original_name}${f.page_count > 1 ? ` · p${p.page_no}` : ''}`,
+    label: `${versionTitle(v)} · ${f.original_name}${f.page_count > 1 ? ` · p${p.page_no}` : ''}${p.submap ? ` · ${p.submap_label || `Part ${p.page_no}`}` : ''}`,
   })))) : [])
   const firstPlaceable = $derived(allFiles.find((f) => f.kind !== 'manual' && f.pages.length))
   // The map's picture, as chosen by the server: your choice, else a map file, then a course print, then anything else.
@@ -133,6 +133,7 @@
   const removeCourse = (c) => confirm(`Delete course “${c.name}”?`) && act(() => api.del(`/api/courses/${c.id}`))
   const detachFile = (f) => confirm(`Move “${f.original_name}” back to the inbox?`) && act(() => api.patch(`/api/files/${f.id}`, { map_version_id: null }), 'Moved to inbox')
   const setKind = (f, kind) => act(() => api.patch(`/api/files/${f.id}`, { kind }))
+  const setSubmap = (p, data) => act(() => api.patch(`/api/pages/${p.id}`, data))
   const setCover = (fileId) => act(() => api.put(`/api/maps/${id}/cover`, { file_id: fileId }), fileId ? 'Map picture changed' : 'Map picture chosen automatically again')
   const setPublish = (level) => act(() => api.patch(`/api/maps/${id}`, { publish_level: level }),
     level === 'private' ? 'Removed from the public site at the next publish' : `Public site: ${PUBLISH_LEVELS.find((l) => l.value === level).label}`)
@@ -305,7 +306,7 @@
         {#if v.files.length}
           <div class="files">
             {#each v.files as f (f.id)}
-              <div class="file">
+              <div class="file" class:multi={f.pages.length > 1}>
                 <button class="fthumb" onclick={() => view(f)} aria-label="View {f.original_name}">
                   {#if f.thumb_url}<img src={f.thumb_url} alt="" loading="lazy" />{/if}
                   {#if f.page_count > 1}<span class="pages">{f.page_count} p</span>{/if}
@@ -331,6 +332,28 @@
                       <button class="small ghost" onclick={() => setCover(f.id)} title="Show this file as the map’s picture: here, in the library and on the public site">☆ Use as map picture</button>
                     {/if}
                   </div>
+                  {#if f.pages.length > 1}
+                    <!-- Pages of a multi-page file: other courses on the same map, or separate parts (submaps) of it. -->
+                    <details class="fpages" open={f.pages.length <= 4 || f.pages.some((p) => p.submap)}>
+                      <summary class="small">Pages{#if f.pages.some((p) => p.submap)} · {f.pages.filter((p) => p.submap).length} submaps{/if}</summary>
+                      <div class="fplist">
+                      {#each f.pages as p (p.id)}
+                        <div class="fpage row tight">
+                          <button class="fthumb mini" onclick={() => view(f, p.page_no)} aria-label="View page {p.page_no}"><img src={p.thumb_url} alt="" loading="lazy" /></button>
+                          <span class="pno small">p{p.page_no}</span>
+                          <a class="btn small ghost {p.georef ? 'placed' : ''}" href="#/place/{p.id}"
+                            title={p.georef ? `Placed with ${p.georef.point_count} points` : 'Place this page on the map'}>{p.georef ? '✓ Placed' : 'Place'}</a>
+                          <label class="inline small" title="This page is a separate part of the map, not another course on it. Every placed submap of the map’s picture shows on the overview map.">
+                            <input type="checkbox" checked={p.submap} onchange={(e) => setSubmap(p, { submap: e.target.checked })} /> Submap</label>
+                          {#if p.submap}
+                            <input class="sublabel" value={p.submap_label ?? ''} placeholder="Part {p.page_no}" aria-label="Name of submap {p.page_no}"
+                              onchange={(e) => setSubmap(p, { submap_label: e.target.value })} />
+                          {/if}
+                        </div>
+                      {/each}
+                      </div>
+                    </details>
+                  {/if}
                 </div>
               </div>
             {/each}
@@ -491,6 +514,14 @@
   .fname { font-weight: 500; font-size: .9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tight { gap: .25rem; flex-wrap: nowrap; }
   .kind { width: auto; padding: .15rem .3rem; font-size: .8rem; }
+  .file.multi { grid-column: 1 / -1; }
+  .fpages { margin-top: .35rem; }
+  .fpages summary { cursor: pointer; color: var(--muted); }
+  .fplist { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: .35rem 1rem; margin-top: .35rem; }
+  .fpage { align-items: center; }
+  .pno { color: var(--muted); min-width: 1.6rem; }
+  .fpage .inline { display: inline-flex; align-items: center; gap: .25rem; white-space: nowrap; }
+  .sublabel { width: 8rem; padding: .15rem .35rem; font-size: .8rem; }
 
   .event { border-left: 3px solid var(--course); padding: .4rem 0 .4rem .8rem; margin-bottom: .75rem; }
   .inner { background: var(--surface-2); border-radius: 6px; padding: .75rem; margin-bottom: .75rem; }

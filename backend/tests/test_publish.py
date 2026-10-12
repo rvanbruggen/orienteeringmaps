@@ -171,3 +171,31 @@ def test_publish_pushes_with_git(client, site_dist, tmp_path, monkeypatch):
 
     preview = client.post("/api/publish/preview").json()
     assert preview["pending"]["added"] == 0 and preview["pending"]["changed"] == 0
+
+
+def test_build_site_with_submaps(client, site_dist):
+    from app import db, publish
+    from tests.test_georef import synth
+    full, outline, f, g = _library(client)
+    p1, p2 = f["pages"]
+    w, h = p2["width"], p2["height"]
+    client.put(f"/api/pages/{p2['id']}/georef", json={"points": synth([(50, 60), (w - 40, 80), (w - 60, h - 50)], origin=(50.89, 4.71))})
+    with db.SessionLocal() as session:
+        site = publish.build_site(session, publish.get_settings(session), "https://maps.example.org/")
+    assert "parts" not in next(m for m in site.data["maps"] if m["id"] == full["id"])  # page 2 is a course
+
+    for p, label in ((p1, "West"), (p2, None)):
+        client.patch(f"/api/pages/{p['id']}", json={"submap": True, "submap_label": label})
+    client.patch(f"/api/maps/{outline['id']}", json={"publish_level": "private"})
+    with db.SessionLocal() as session:
+        site = publish.build_site(session, publish.get_settings(session), "https://maps.example.org/")
+    rec = next(m for m in site.data["maps"] if m["id"] == full["id"])
+    assert [p["label"] for p in rec["parts"]] == ["West", "Part 2"]
+    assert all(p["footprint"] and p["page"]["place"] for p in rec["parts"])
+    assert rec["parts"][0]["page"] == rec["hero"]
+
+    client.patch(f"/api/maps/{full['id']}", json={"publish_level": "outline"})
+    with db.SessionLocal() as session:
+        site = publish.build_site(session, publish.get_settings(session), "https://maps.example.org/")
+    rec = next(m for m in site.data["maps"] if m["id"] == full["id"])
+    assert len(rec["parts"]) == 2 and not any("page" in p for p in rec["parts"])  # outlines only, no images

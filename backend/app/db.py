@@ -176,6 +176,11 @@ MIGRATIONS: list[str] = [
     );
     CREATE INDEX ix_import_items_task_id ON import_items (task_id)
     """,
+    # 11 -> 12 (v0.13.0): submaps (pages that are separate parts of one map)
+    """
+    ALTER TABLE pages ADD COLUMN submap INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE pages ADD COLUMN submap_label VARCHAR(100)
+    """,
 ]
 
 

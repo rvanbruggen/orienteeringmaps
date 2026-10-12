@@ -16,6 +16,7 @@ A personal library for orienteering maps: upload PDFs and images, record each ma
   - After two points, a predicted marker shows where the next point should go.
   - An outline hides the legend and margins in the overlay.
   - Multi-page PDFs with the same layout (one course per page) are placed in one go.
+  - A PDF whose pages are separate parts of one map (say a north and a south half): tick **Submap** for those pages under *Pages* on the file, and place each one. Every placed submap of the map's picture shows on the overview map, in the exports and on the public site; pages that are not submaps (other courses) stay as before. The placement editor has buttons to switch between the pages of a file.
   - Each map page shows the placed overlay with an opacity slider.
 - **Explorer map** (v0.3): the library's Map view shows every map as its outline (placed) or a pin (location only), using the same filters as the table. A side list shows the maps in view. Zoomed in, the map images are drawn on top.
 - **Events** page: every event on every map, grouped by year, with search and filters.

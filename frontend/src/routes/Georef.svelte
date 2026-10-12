@@ -330,7 +330,16 @@
       <button class="ghost" onclick={leave}>← {ctx.map_name ?? 'Back'}</button>
       <div class="title">
         <strong>Place on map</strong>
-        <span class="muted">{ctx.file_name}{ctx.page_count > 1 ? ` · page ${ctx.page.page_no}` : ''}</span>
+        <span class="muted">{ctx.file_name}{ctx.page_count > 1 ? ` · page ${ctx.page.page_no}` : ''}{ctx.page.submap ? ` · ${ctx.page.submap_label || `Part ${ctx.page.page_no}`}` : ''}</span>
+        {#if ctx.file_pages.length > 1}
+          <span class="pagenav">
+            {#each ctx.file_pages as p}
+              <a class="btn small {p.id === ctx.page.id ? 'primary' : 'ghost'}" href="#/place/{p.id}"
+                onclick={(e) => { if (dirty && !confirm('Leave without saving the placement?')) e.preventDefault() }}
+                title="Page {p.page_no}{p.submap ? ` (${p.submap_label || `Part ${p.page_no}`})` : ''}{p.georef ? ': placed' : ''}">{p.page_no}{p.georef ? ' ✓' : ''}</a>
+            {/each}
+          </span>
+        {/if}
       </div>
       <span class="spacer"></span>
       <label class="inline">Fit
@@ -426,6 +435,8 @@
   .bar { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; padding: .25rem 0; }
   .title { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
   .title .muted { font-size: .85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 40vw; }
+  .pagenav { display: flex; gap: .2rem; margin-top: .2rem; flex-wrap: wrap; }
+  .pagenav .btn { padding: 0 .4rem; min-width: 1.8rem; justify-content: center; }
   .inline { display: inline-flex; align-items: center; gap: .35rem; font-size: .9rem; white-space: nowrap; }
   .inline select { width: auto; }
   .step { margin: .4rem 0 .6rem; padding: .5rem .75rem; background: color-mix(in srgb, var(--accent) 9%, var(--surface)); border-radius: 6px; font-size: .92rem; }

@@ -13,6 +13,8 @@ function centre(m) {
   return m.lat != null ? [m.lat, m.lon] : null
 }
 
+const asOverlay = (p) => ({ image_url: p.img, width: p.w, height: p.h, corners: p.place.corners, clip: p.place.clip })
+
 function shape(m) {
   const events = m.versions.flatMap((v) => (v.events ?? []).map((e) => ({ ...e, version: v })))
   const files = [...m.versions.flatMap((v) => v.files ?? []), ...(m.extra_files ?? [])]
@@ -27,7 +29,9 @@ function shape(m) {
     thumb_url: m.thumb ?? null,
     club_name: m.club ?? null,
     last_survey: m.survey ?? null,
-    overlay: hero?.place ? { image_url: hero.img, width: hero.w, height: hero.h, corners: hero.place.corners, clip: hero.place.clip } : null,
+    overlay: hero?.place ? asOverlay(hero) : null,
+    // A map in several placed parts (submaps): an outline, and an image if published, per part.
+    parts: (m.parts ?? []).map((p) => ({ label: p.label, footprint: p.footprint, overlay: p.page?.place ? asOverlay(p.page) : null })),
     search: norm([
       m.name, m.location, m.club, m.cartographer, m.type, ...(m.tags ?? []),
       ...events.flatMap((e) => [e.name, e.organiser, ...(e.courses ?? []).map((c) => c.name)]),

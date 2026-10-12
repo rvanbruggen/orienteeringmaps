@@ -29,7 +29,7 @@ def georef_summary(g: m.Georeference | None) -> s.GeorefSummary | None:
 def page_out(p: m.Page) -> s.PageOut:
     return s.PageOut(id=p.id, page_no=p.page_no, width=p.width, height=p.height, dpi=p.dpi,
                      image_url=derived_url(p.image_name), thumb_url=derived_url(p.thumb_name),
-                     georef=georef_summary(p.georef))
+                     georef=georef_summary(p.georef), submap=bool(p.submap), submap_label=p.submap_label)
 
 
 def file_out(f: m.File, with_pages: bool = True) -> s.FileOut:
@@ -112,13 +112,23 @@ def cover_file(mp: m.Map) -> m.File | None:
     return next((f for f in _picture_files(mp) if f.pages), None)
 
 
-def primary_page(mp: m.Map) -> m.Page | None:
-    """The placed page that represents a map, in the same order as its picture."""
+def primary_pages(mp: m.Map) -> list[m.Page]:
+    """The placed pages that represent a map, in the same order as its picture: of the first file
+    with a placed page, all its placed submaps, or else just its first placed page."""
     for f in _picture_files(mp):
-        for p in f.pages:
-            if p.georef is not None:
-                return p
-    return None
+        placed = [p for p in f.pages if p.georef is not None]
+        if placed:
+            return [p for p in placed if p.submap] or placed[:1]
+    return []
+
+
+def primary_page(mp: m.Map) -> m.Page | None:
+    """The placed page that represents a map (the first of primary_pages)."""
+    return next(iter(primary_pages(mp)), None)
+
+
+def submap_label(p: m.Page) -> str:
+    return p.submap_label or f"Part {p.page_no}"
 
 
 def footprint(page: m.Page) -> list[list[float]]:
@@ -158,10 +168,12 @@ def map_summary(mp: m.Map) -> dict:
 
 
 def _placement(mp: m.Map) -> dict:
-    page = primary_page(mp)
-    if page is None:
-        return {"footprint": None, "overlay": None}
-    return {"footprint": footprint(page), "overlay": overlay_of(page)}
+    pages = primary_pages(mp)
+    if not pages:
+        return {"footprint": None, "overlay": None, "parts": []}
+    parts = [{"page_id": p.id, "label": submap_label(p) if p.submap else None,
+              "footprint": footprint(p), "overlay": overlay_of(p)} for p in pages]
+    return {"footprint": parts[0]["footprint"], "overlay": parts[0]["overlay"], "parts": parts}
 
 
 MAP_LOAD = (
