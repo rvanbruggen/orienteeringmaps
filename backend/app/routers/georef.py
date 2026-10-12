@@ -64,10 +64,18 @@ def _context(db: Session, page: m.Page) -> s.GeorefContext:
         page_count=f.page_count, map_id=mp.id if mp else None, map_name=mp.name if mp else None,
         map_lat=mp.lat if mp else None, map_lon=mp.lon if mp else None, map_location=mp.location if mp else None,
         stated_scale=stated, exif_lat=f.exif_lat, exif_lon=f.exif_lon,
-        same_layout_pages=[services.page_out(p) for p in f.pages
-                           if p.id != page.id and (p.width, p.height) == (page.width, page.height)],
+        same_layout_pages=[services.page_out(p) for p in _same_layout(page)],
         file_pages=[services.page_out(p) for p in f.pages], other_placed=others[:20], georef=_georef_out(page.georef), runs=my_runs,
     )
+
+
+def _same_layout(page: m.Page) -> list[m.Page]:
+    """Other pages of the file with the same size, which can share this page's placement
+    (one course per page). Submaps are separate parts of the map, so they never share one."""
+    if page.submap:
+        return []
+    return [p for p in page.file.pages
+            if p.id != page.id and not p.submap and (p.width, p.height) == (page.width, page.height)]
 
 
 def _load_page(db: Session, page_id: int) -> m.Page:
@@ -105,11 +113,11 @@ def save_georef(page_id: int, data: s.GeorefSave, db: Session = Depends(get_sess
         raise HTTPException(422, str(exc))
 
     targets = [page]
+    allowed = {p.id: p for p in _same_layout(page)}
     for pid in data.also_page_ids:
-        other = services.get_or_404(db, m.Page, pid)
-        if other.file_id != page.file_id or (other.width, other.height) != (page.width, page.height):
-            raise HTTPException(422, f"Page {pid} does not have the same layout")
-        targets.append(other)
+        if pid not in allowed:
+            raise HTTPException(422, f"Page {pid} does not have the same layout, or is a submap")
+        targets.append(allowed[pid])
 
     for target in targets:
         geo = target.georef or m.Georeference(page_id=target.id)

@@ -214,6 +214,12 @@ def test_submaps_show_every_part(client):
 
     ctx = client.get(f"/api/pages/{p2['id']}/georef").json()
     assert [p["page_no"] for p in ctx["file_pages"]] == [1, 2, 3] and ctx["page"]["submap"]
+    # Submaps never share a placement, even with the same page size.
+    assert ctx["same_layout_pages"] == []
+    r = client.put(f"/api/pages/{p2['id']}/georef", json={"points": synth(corners, origin=(50.89, 4.71)), "also_page_ids": [p1["id"]]})
+    assert r.status_code == 422
+    s = summary()
+    assert s["parts"][0]["footprint"] != s["parts"][1]["footprint"]
 
     client.patch(f"/api/pages/{p1['id']}", json={"submap_label": ""})
     client.patch(f"/api/pages/{p2['id']}", json={"submap": False})

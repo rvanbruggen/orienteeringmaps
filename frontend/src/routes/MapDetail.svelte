@@ -134,6 +134,9 @@
   const detachFile = (f) => confirm(`Move “${f.original_name}” back to the inbox?`) && act(() => api.patch(`/api/files/${f.id}`, { map_version_id: null }), 'Moved to inbox')
   const setKind = (f, kind) => act(() => api.patch(`/api/files/${f.id}`, { kind }))
   const setSubmap = (p, data) => act(() => api.patch(`/api/pages/${p.id}`, data))
+  // A submap placed exactly like an earlier one (e.g. copied by "same layout" before it was ticked) hides behind it.
+  const samePlaceAs = (f, p) => p.submap && p.georef && f.pages.find((q) => q.page_no < p.page_no && q.submap && q.georef
+    && JSON.stringify(q.georef.corners) === JSON.stringify(p.georef.corners))
   const setCover = (fileId) => act(() => api.put(`/api/maps/${id}/cover`, { file_id: fileId }), fileId ? 'Map picture changed' : 'Map picture chosen automatically again')
   const setPublish = (level) => act(() => api.patch(`/api/maps/${id}`, { publish_level: level }),
     level === 'private' ? 'Removed from the public site at the next publish' : `Public site: ${PUBLISH_LEVELS.find((l) => l.value === level).label}`)
@@ -345,6 +348,9 @@
                             title={p.georef ? `Placed with ${p.georef.point_count} points` : 'Place this page on the map'}>{p.georef ? '✓ Placed' : 'Place'}</a>
                           <label class="inline small" title="This page is a separate part of the map, not another course on it. Every placed submap of the map’s picture shows on the overview map.">
                             <input type="checkbox" checked={p.submap} onchange={(e) => setSubmap(p, { submap: e.target.checked })} /> Submap</label>
+                          {#if samePlaceAs(f, p)}
+                            <span class="warn small" title="Both submaps have the same placement, so they lie on top of each other. Place this page again.">⚠ same placement as p{samePlaceAs(f, p).page_no}</span>
+                          {/if}
                           {#if p.submap}
                             <input class="sublabel" value={p.submap_label ?? ''} placeholder="Part {p.page_no}" aria-label="Name of submap {p.page_no}"
                               onchange={(e) => setSubmap(p, { submap_label: e.target.value })} />
@@ -522,6 +528,7 @@
   .pno { color: var(--muted); min-width: 1.6rem; }
   .fpage .inline { display: inline-flex; align-items: center; gap: .25rem; white-space: nowrap; }
   .sublabel { width: 8rem; padding: .15rem .35rem; font-size: .8rem; }
+  .warn { color: var(--warn); white-space: nowrap; }
 
   .event { border-left: 3px solid var(--course); padding: .4rem 0 .4rem .8rem; margin-bottom: .75rem; }
   .inner { background: var(--surface-2); border-radius: 6px; padding: .75rem; margin-bottom: .75rem; }
