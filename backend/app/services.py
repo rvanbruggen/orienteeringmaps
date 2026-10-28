@@ -29,7 +29,8 @@ def georef_summary(g: m.Georeference | None) -> s.GeorefSummary | None:
 def page_out(p: m.Page) -> s.PageOut:
     return s.PageOut(id=p.id, page_no=p.page_no, width=p.width, height=p.height, dpi=p.dpi,
                      image_url=derived_url(p.image_name), thumb_url=derived_url(p.thumb_name),
-                     georef=georef_summary(p.georef), submap=bool(p.submap), submap_label=p.submap_label)
+                     georef=georef_summary(p.georef), submap=bool(p.submap), submap_label=p.submap_label,
+                     result_card=bool(p.result_card), result_card_box=p.result_card_box)
 
 
 def file_out(f: m.File, with_pages: bool = True) -> s.FileOut:
@@ -109,14 +110,24 @@ def _picture_files(mp: m.Map) -> list[m.File]:
 
 def cover_file(mp: m.Map) -> m.File | None:
     """The file that pictures the map: your choice if it is still on the map, else the best by kind."""
-    return next((f for f in _picture_files(mp) if f.pages), None)
+    return next((f for f in _picture_files(mp) if map_pages(f)), None)
+
+
+def card_page(p: m.Page) -> bool:
+    """The whole page is a result card, so it is not part of the map."""
+    return bool(p.result_card) and not p.result_card_box
+
+
+def map_pages(f: m.File) -> list[m.Page]:
+    """The pages of a file that are (part of) the map: all but whole-page result cards."""
+    return [p for p in f.pages if not card_page(p)]
 
 
 def primary_pages(mp: m.Map) -> list[m.Page]:
     """The placed pages that represent a map, in the same order as its picture: of the first file
     with a placed page, all its placed submaps, or else just its first placed page."""
     for f in _picture_files(mp):
-        placed = [p for p in f.pages if p.georef is not None]
+        placed = [p for p in map_pages(f) if p.georef is not None]
         if placed:
             return [p for p in placed if p.submap] or placed[:1]
     return []
@@ -150,7 +161,7 @@ def map_summary(mp: m.Map) -> dict:
     surveys = [v.survey_date for v in mp.versions if v.survey_date]
     event_dates = [e.date for e in events if e.date]
     cover = cover_file(mp)
-    thumb = derived_url(cover.pages[0].thumb_name) if cover else None
+    thumb = derived_url(map_pages(cover)[0].thumb_name) if cover else None
     return dict(
         id=mp.id, name=mp.name, location=mp.location, lat=mp.lat, lon=mp.lon,
         map_type=mp.map_type, club_id=mp.club_id, club_name=mp.club.name if mp.club else None,

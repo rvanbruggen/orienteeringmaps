@@ -15,6 +15,12 @@
     loading = false
   })
   const drop = (f) => (items = items.filter((i) => i.file.id !== f.id))
+  // A split file is replaced by its parts, in place.
+  async function replace(f, files) {
+    const parts = await Promise.all(files.map((x) => api.get(`/api/files/${x.id}`)))
+    const at = items.findIndex((i) => i.file.id === f.id)
+    items = [...items.slice(0, at), ...parts, ...items.slice(at + 1)]
+  }
 </script>
 
 <main class="page">
@@ -27,7 +33,7 @@
   {:else}
     <div class="list">
       {#each items as item (item.file.id)}
-        <FileTriage {item} onfiled={drop} ondeleted={drop} />
+        <FileTriage {item} onfiled={drop} ondeleted={drop} onsplit={replace} />
       {/each}
     </div>
   {/if}

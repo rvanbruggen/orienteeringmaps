@@ -8,11 +8,13 @@
   import NewMapDialog from './NewMapDialog.svelte'
   import AttachDialog from './AttachDialog.svelte'
   import Modal from './Modal.svelte'
+  import SplitDialog from './SplitDialog.svelte'
 
   // item: {status, file, similar, candidate_maps}
-  let { item, onfiled, ondeleted } = $props()
+  let { item, onfiled, ondeleted, onsplit } = $props()
   let viewer = $state(false), pageIdx = $state(0)
   let newOpen = $state(false), attachOpen = $state(false), textOpen = $state(false), text = $state('')
+  let splitOpen = $state(false)
 
   const f = $derived(item.file)
   const s = $derived(f.suggestions || {})
@@ -73,6 +75,9 @@
         <button class="primary" onclick={() => (newOpen = true)}>New map</button>
         <button onclick={() => (attachOpen = true)}>Add to existing map…</button>
         <button class="ghost" onclick={showText}>Text</button>
+        {#if f.format === 'pdf' && f.pages.length > 1}
+          <button class="ghost" onclick={() => (splitOpen = true)} title="This PDF holds more than one map: cut it into one file per map">Split…</button>
+        {/if}
         <a class="btn ghost" href={f.original_url} target="_blank" rel="noopener">Original</a>
         <span class="spacer"></span>
         <button class="ghost danger" onclick={remove}>Delete</button>
@@ -84,6 +89,7 @@
 <Lightbox pages={f.pages} bind:index={pageIdx} bind:open={viewer} title={f.original_name} />
 <NewMapDialog files={[f]} bind:open={newOpen} oncreated={(m) => { onfiled?.(f); go(`/map/${m.id}`) }} />
 <AttachDialog file={f} candidates={item.candidate_maps || []} bind:open={attachOpen} ondone={(m) => { onfiled?.(f); go(`/map/${m.id}`) }} />
+<SplitDialog file={f} bind:open={splitOpen} onsplit={(files) => (onsplit ? onsplit(f, files) : go('/inbox'))} />
 <Modal title="Text found in {f.original_name}" bind:open={textOpen}>
   <pre class="text">{text}</pre>
 </Modal>

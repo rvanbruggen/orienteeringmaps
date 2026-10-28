@@ -181,6 +181,11 @@ MIGRATIONS: list[str] = [
     ALTER TABLE pages ADD COLUMN submap INTEGER NOT NULL DEFAULT 0;
     ALTER TABLE pages ADD COLUMN submap_label VARCHAR(100)
     """,
+    # 12 -> 13 (v0.14.0): result cards on a page (the whole page, or a part of it)
+    """
+    ALTER TABLE pages ADD COLUMN result_card INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE pages ADD COLUMN result_card_box JSON
+    """,
 ]
 
 

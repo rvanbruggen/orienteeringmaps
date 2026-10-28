@@ -8,6 +8,7 @@ ImportTask ─< ImportItem >─ File, StravaActivity (a scan being imported, and
 A File (PDF or image) belongs to a MapVersion, or to nobody yet (the inbox).
 A Course can point at a File, and at a page within it (multi-page PDFs).
 The pages of a File can also be submaps: separate parts of one map, each placed on its own.
+A page, or a part of one, can be a result card instead of (part of) the map.
 
 Dates of surveys and events are stored as partial ISO strings: "2021",
 "2021-05" or "2021-05-14", because old maps often only state a month or year.
@@ -176,6 +177,11 @@ class Page(Base):
     # course on the same map. All placed submaps of the map's picture file show on the overview.
     submap: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     submap_label: Mapped[str | None] = mapped_column(String(100))  # "North", "Part 2", ...
+    # A result card (the punch card or printout with your times) on this page: the whole page, or
+    # only the part in result_card_box. A whole-page result card is not part of the map: it is
+    # never placed, and never shows on the overview.
+    result_card: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    result_card_box: Mapped[list | None] = mapped_column(JSON)  # [x0, y0, x1, y1] image pixels, or None
 
     file: Mapped[File] = relationship(back_populates="pages")
     georef: Mapped["Georeference | None"] = relationship(

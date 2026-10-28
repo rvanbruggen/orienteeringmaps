@@ -71,10 +71,11 @@ def _context(db: Session, page: m.Page) -> s.GeorefContext:
 
 def _same_layout(page: m.Page) -> list[m.Page]:
     """Other pages of the file with the same size, which can share this page's placement
-    (one course per page). Submaps are separate parts of the map, so they never share one."""
-    if page.submap:
+    (one course per page). Submaps are separate parts of the map, so they never share one,
+    and a whole-page result card is not part of the map at all."""
+    if page.submap or services.card_page(page):
         return []
-    return [p for p in page.file.pages
+    return [p for p in services.map_pages(page.file)
             if p.id != page.id and not p.submap and (p.width, p.height) == (page.width, page.height)]
 
 
@@ -105,6 +106,8 @@ def fit_points(req: s.FitRequest):
 @router.put("/pages/{page_id}/georef", response_model=s.GeorefContext)
 def save_georef(page_id: int, data: s.GeorefSave, db: Session = Depends(get_session)):
     page = _load_page(db, page_id)
+    if services.card_page(page):
+        raise HTTPException(422, "This page is a result card, not part of the map")
     _ensure_dpi(db, page)
     points = [p.model_dump() for p in data.points]
     try:
@@ -145,12 +148,26 @@ def delete_georef(page_id: int, db: Session = Depends(get_session)):
 
 @router.patch("/pages/{page_id}", response_model=s.PageOut)
 def update_page(page_id: int, data: s.PageUpdate, db: Session = Depends(get_session)):
-    """Mark a page as a submap (a separate part of the map), and name it."""
+    """Mark a page as a submap (a separate part of the map), and name it; or mark the page, or a
+    part of it, as a result card."""
     page = _load_page(db, page_id)
     fields = data.model_dump(exclude_unset=True)
     if "submap" in fields:
         page.submap = int(bool(fields["submap"]))
     if "submap_label" in fields:
         page.submap_label = fields["submap_label"] or None
+    if "result_card" in fields or "result_card_box" in fields:
+        box = fields.get("result_card_box")
+        if box is not None:
+            x0, y0, x1, y1 = box
+            x0, x1 = sorted((max(0, min(page.width, x0)), max(0, min(page.width, x1))))
+            y0, y1 = sorted((max(0, min(page.height, y0)), max(0, min(page.height, y1))))
+            if x1 - x0 < 10 or y1 - y0 < 10:
+                raise HTTPException(422, "The result card is too small; draw a larger box")
+            box = [round(x0, 1), round(y0, 1), round(x1, 1), round(y1, 1)]
+        page.result_card = int(bool(fields.get("result_card", True)))
+        page.result_card_box = box if page.result_card else None
+        if services.card_page(page):
+            page.submap = 0  # a whole-page result card is not part of the map
     db.commit()
     return services.page_out(page)

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 from .. import models as m
 from .. import processing
 from .. import schemas as s
-from .. import services
+from .. import services, split
 from ..db import get_session
 from ..ingest import ingest_stream, similar_files
 from ..suggest import suggest
@@ -70,6 +70,17 @@ def delete_file(file_id: int, db: Session = Depends(get_session)):
     db.commit()
     processing.delete_original(stored)
     processing.delete_derived(digest)
+
+
+@router.post("/{file_id}/split", response_model=list[s.FileOut])
+def split_file(file_id: int, data: s.FileSplit, db: Session = Depends(get_session)):
+    """Split a PDF that holds several maps: the file keeps the first part, the others go to the inbox."""
+    f = services.get_or_404(db, m.File, file_id)
+    try:
+        files = split.split_file(db, f, data.parts)
+    except split.SplitError as exc:
+        raise HTTPException(422, str(exc))
+    return [services.file_out(x) for x in files]
 
 
 @router.get("/{file_id}/original")

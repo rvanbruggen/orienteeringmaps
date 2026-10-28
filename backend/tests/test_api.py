@@ -225,3 +225,79 @@ def test_submaps_show_every_part(client):
     client.patch(f"/api/pages/{p2['id']}", json={"submap": False})
     s = summary()
     assert [(p["page_id"], p["label"]) for p in s["parts"]] == [(p1["id"], "Part 1")]
+
+
+def test_result_cards(client):
+    from tests.test_georef import synth
+    f = upload(client, "with-card.pdf", make_pdf("Schaal 1/5.000", pages=3))["file"]
+    mp = client.post("/api/maps", json={"name": "With a card", "file_ids": [f["id"]]}).json()
+    p1, p2, p3 = f["pages"]
+    w, h = p1["width"], p1["height"]
+    corners = [(50, 60), (w - 40, 80), (w - 60, h - 50)]
+
+    # Page 1 is the result card: the whole page. It stops being a submap, and cannot be placed.
+    client.patch(f"/api/pages/{p1['id']}", json={"submap": True})
+    r = client.patch(f"/api/pages/{p1['id']}", json={"result_card": True})
+    assert r.status_code == 200 and r.json()["result_card"] and r.json()["result_card_box"] is None
+    assert not r.json()["submap"]
+    assert client.put(f"/api/pages/{p1['id']}/georef", json={"points": synth(corners)}).status_code == 422
+
+    # Same layout leaves it out, and the map is pictured by page 2.
+    ctx = client.get(f"/api/pages/{p2['id']}/georef").json()
+    assert [p["id"] for p in ctx["same_layout_pages"]] == [p3["id"]]
+    client.put(f"/api/pages/{p2['id']}/georef", json={"points": synth(corners)})
+    s = next(m for m in client.get("/api/maps").json() if m["id"] == mp["id"])
+    assert s["overlay"]["page_id"] == p2["id"] and s["thumb_url"] == p2["thumb_url"]
+
+    # A part of page 3 is a result card: the box is put in order and kept inside the page.
+    r = client.patch(f"/api/pages/{p3['id']}", json={"result_card_box": [w + 50, h / 2, w / 2, -5]})
+    assert r.json()["result_card"] and r.json()["result_card_box"] == [w / 2, 0, w, h / 2]
+    ctx = client.get(f"/api/pages/{p2['id']}/georef").json()
+    assert [p["id"] for p in ctx["same_layout_pages"]] == [p3["id"]]  # still part of the map
+    assert client.patch(f"/api/pages/{p3['id']}", json={"result_card_box": [0, 0, 5, 5]}).status_code == 422
+
+    r = client.patch(f"/api/pages/{p3['id']}", json={"result_card": False})
+    assert not r.json()["result_card"] and r.json()["result_card_box"] is None
+
+
+def test_split_pdf_into_maps(client):
+    from app import processing
+    from tests.test_georef import synth
+    f = upload(client, "two-maps.pdf", make_pdf("Schaal 1/5.000", pages=4))["file"]
+    mp = client.post("/api/maps", json={"name": "First map", "file_ids": [f["id"]]}).json()
+    p1, p2, p3, p4 = f["pages"]
+    w, h = p1["width"], p1["height"]
+    client.put(f"/api/pages/{p3['id']}/georef", json={"points": synth([(50, 60), (w - 40, 80), (w - 60, h - 50)])})
+    client.patch(f"/api/pages/{p4['id']}", json={"result_card_box": [0, 0, 100, 50]})
+    version = client.get(f"/api/maps/{mp['id']}").json()["versions"][0]
+    ev = client.post(f"/api/versions/{version['id']}/events", json={"name": "Race"}).json()
+    course = client.post(f"/api/events/{ev['id']}/courses", json={"name": "Long", "file_id": f["id"], "page_no": 4}).json()
+    from app import db, models
+    with db.SessionLocal() as session:
+        row = session.get(models.File, f["id"])
+        old_original = processing.original_path(row.stored_name)
+        old_images = processing.derived_path(row.pages[0].image_name).parent
+    assert old_original.exists() and old_images.exists()
+
+    assert client.post(f"/api/files/{f['id']}/split", json={"parts": [[1, 2], [2, 3, 4]]}).status_code == 422
+    assert client.post(f"/api/files/{f['id']}/split", json={"parts": [[1, 2, 3, 4]]}).status_code == 422
+
+    r = client.post(f"/api/files/{f['id']}/split", json={"parts": [[3, 4], [1, 2]]})
+    assert r.status_code == 200
+    first, second = r.json()
+    # The file keeps the first part and its map; the other part goes to the inbox.
+    assert first["id"] == f["id"] and second["id"] != f["id"]
+    assert first["original_name"] == "two-maps (p1-2).pdf" and second["original_name"] == "two-maps (p3-4).pdf"
+    assert [p["id"] for p in first["pages"]] == [p1["id"], p2["id"]]
+    assert [(p["id"], p["page_no"]) for p in second["pages"]] == [(p3["id"], 1), (p4["id"], 2)]
+    assert second["pages"][0]["georef"] and second["pages"][1]["result_card_box"] == [0, 0, 100, 50]
+    assert first["page_count"] == 2 and second["page_count"] == 2
+    assert second["id"] in [x["id"] for x in client.get("/api/files?unassigned=true").json()]
+    assert client.get(second["original_url"]).status_code == 200
+    assert client.get(second["pages"][0]["image_url"]).status_code == 200
+    assert client.get(first["pages"][0]["image_url"]).status_code == 200
+    assert not old_original.exists() and not old_images.exists()  # the unsplit PDF and its renders are gone
+
+    mp_now = client.get(f"/api/maps/{mp['id']}").json()
+    c = next(c for e in mp_now["versions"][0]["events"] for c in e["courses"] if c["id"] == course["id"])
+    assert c["file_id"] == second["id"] and c["page_no"] == 2

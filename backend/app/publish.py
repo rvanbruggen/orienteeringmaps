@@ -146,7 +146,7 @@ def _hero_page(mp: m.Map) -> m.Page | None:
     if page is not None:
         return page
     f = services.cover_file(mp)
-    return f.pages[0] if f else None
+    return services.map_pages(f)[0] if f else None
 
 
 def _file(site: Site, f: m.File) -> dict:

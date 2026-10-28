@@ -10,6 +10,8 @@
   import EventFields from '../components/EventFields.svelte'
   import CourseFields from '../components/CourseFields.svelte'
   import OverlayMap from '../components/OverlayMap.svelte'
+  import ResultCardDialog from '../components/ResultCardDialog.svelte'
+  import SplitDialog from '../components/SplitDialog.svelte'
 
   let { id } = $props()
   let map = $state(null)
@@ -18,6 +20,8 @@
   // Only one thing is edited at a time: {kind: 'map'|'version'|'event'|'course', id?, parentId?, data}
   let edit = $state(null)
   let lb = $state({ open: false, pages: [], index: 0, title: '' })
+  let rc = $state({ open: false, page: null, title: '' })
+  let splitting = $state({ open: false, file: null })
   let busy = $state(false)
 
   let allMaps = $state([])
@@ -61,7 +65,7 @@
       controls: e.courses.find((c) => c.id === p.course_id)?.control_coords ?? null,
     }))))
     .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '')) : [])
-  const overlays = $derived(map ? map.versions.flatMap((v) => v.files.flatMap((f) => f.pages.filter((p) => p.georef).map((p) => ({
+  const overlays = $derived(map ? map.versions.flatMap((v) => v.files.flatMap((f) => f.pages.filter((p) => p.georef && !cardPage(p)).map((p) => ({
     key: p.id, page_id: p.id, image_url: p.image_url, width: p.width, height: p.height,
     corners: p.georef.corners, clip: p.georef.clip,
     label: `${versionTitle(v)} · ${f.original_name}${f.page_count > 1 ? ` · p${p.page_no}` : ''}${p.submap ? ` · ${p.submap_label || `Part ${p.page_no}`}` : ''}`,
@@ -134,6 +138,10 @@
   const detachFile = (f) => confirm(`Move “${f.original_name}” back to the inbox?`) && act(() => api.patch(`/api/files/${f.id}`, { map_version_id: null }), 'Moved to inbox')
   const setKind = (f, kind) => act(() => api.patch(`/api/files/${f.id}`, { kind }))
   const setSubmap = (p, data) => act(() => api.patch(`/api/pages/${p.id}`, data))
+  // A whole page that is a result card is not part of the map; a page can also hold one in a box.
+  const cardPage = (p) => p.result_card && !p.result_card_box
+  const markCard = (f, p) => (rc = { open: true, page: p, title: `Result card · ${f.original_name}${f.page_count > 1 ? ` · p${p.page_no}` : ''}` })
+  const versionCards = (v) => v.files.flatMap((f) => f.pages.filter((p) => p.result_card).map((p) => ({ f, p })))
   // A submap placed exactly like an earlier one (e.g. copied by "same layout" before it was ticked) hides behind it.
   const samePlaceAs = (f, p) => p.submap && p.georef && f.pages.find((q) => q.page_no < p.page_no && q.submap && q.georef
     && JSON.stringify(q.georef.corners) === JSON.stringify(p.georef.corners))
@@ -170,6 +178,16 @@
   const emptyEvent = () => ({ name: '', date: '', end_date: '', event_type: null, discipline: null, organiser_club_id: null, results_url: '', notes: '' })
   const emptyCourse = () => ({ name: '', length_km: null, climb_m: null, controls: null, scale: null, file_id: null, page_no: null, notes: '' })
 </script>
+
+<!-- The result card part of a page (or the whole page), at a fixed height. -->
+{#snippet crop(p, h = 72, w = 240)}
+  {@const [x0, y0, x1, y1] = p.result_card_box ?? [0, 0, p.width, p.height]}
+  {@const k = Math.min(h / (y1 - y0), w / (x1 - x0))}
+  <div class="crop" style="height: {(y1 - y0) * k}px; width: {(x1 - x0) * k}px">
+    <img src={p.image_url} alt="Result card" loading="lazy"
+      style="width: {p.width * k}px; height: {p.height * k}px; left: {-x0 * k}px; top: {-y0 * k}px" />
+  </div>
+{/snippet}
 
 {#if error}
   <main class="page"><p class="empty">{error} — <a href="#/">back to the library</a></p></main>
@@ -322,8 +340,8 @@
                       {#each meta.enums.file_kinds as k}<option value={k}>{label(k)}</option>{/each}
                     </select>
                     <a class="btn small ghost" href={f.original_url} target="_blank" rel="noopener" title="Original file">↓</a>
-                    {#if f.pages.length}
-                      <a class="btn small {f.pages.some((p) => p.georef) ? 'ghost placed' : ''}" href="#/place/{f.pages[0].id}"
+                    {#if f.pages.length && !(f.pages.length === 1 && cardPage(f.pages[0]))}
+                      <a class="btn small {f.pages.some((p) => p.georef) ? 'ghost placed' : ''}" href="#/place/{(f.pages.find((p) => !cardPage(p)) ?? f.pages[0]).id}"
                         title={f.pages[0].georef ? `Placed with ${f.pages[0].georef.point_count} points` : 'Place this page on the map'}>
                         {f.pages.some((p) => p.georef) ? '✓ Placed' : 'Place'}</a>
                     {/if}
@@ -335,19 +353,30 @@
                       <button class="small ghost" onclick={() => setCover(f.id)} title="Show this file as the map’s picture: here, in the library and on the public site">☆ Use as map picture</button>
                     {/if}
                   </div>
-                  {#if f.pages.length > 1}
+                  {#if f.pages.length === 1}
+                    <div class="row tight">
+                      <button class="small ghost {f.pages[0].result_card ? 'carded' : ''}" onclick={() => markCard(f, f.pages[0])}
+                        title="Mark this page, or a part of it, as a result card">{f.pages[0].result_card ? (cardPage(f.pages[0]) ? '▣ Result card' : '▣ Result card (part)') : '▢ Result card…'}</button>
+                    </div>
+                  {:else if f.pages.length > 1}
                     <!-- Pages of a multi-page file: other courses on the same map, or separate parts (submaps) of it. -->
                     <details class="fpages" open={f.pages.length <= 4 || f.pages.some((p) => p.submap)}>
-                      <summary class="small">Pages{#if f.pages.some((p) => p.submap)} · {f.pages.filter((p) => p.submap).length} submaps{/if}</summary>
+                      <summary class="small">Pages{#if f.pages.some((p) => p.submap)} · {f.pages.filter((p) => p.submap).length} submaps{/if}{#if f.pages.some((p) => p.result_card)} · {f.pages.filter((p) => p.result_card).length} result card{f.pages.filter((p) => p.result_card).length > 1 ? 's' : ''}{/if}</summary>
                       <div class="fplist">
                       {#each f.pages as p (p.id)}
                         <div class="fpage row tight">
                           <button class="fthumb mini" onclick={() => view(f, p.page_no)} aria-label="View page {p.page_no}"><img src={p.thumb_url} alt="" loading="lazy" /></button>
                           <span class="pno small">p{p.page_no}</span>
+                          {#if cardPage(p)}
+                            <button class="small ghost carded" onclick={() => markCard(f, p)} title="The whole page is a result card, not part of the map">▣ Result card</button>
+                          {:else}
                           <a class="btn small ghost {p.georef ? 'placed' : ''}" href="#/place/{p.id}"
                             title={p.georef ? `Placed with ${p.georef.point_count} points` : 'Place this page on the map'}>{p.georef ? '✓ Placed' : 'Place'}</a>
                           <label class="inline small" title="This page is a separate part of the map, not another course on it. Every placed submap of the map’s picture shows on the overview map.">
                             <input type="checkbox" checked={p.submap} onchange={(e) => setSubmap(p, { submap: e.target.checked })} /> Submap</label>
+                          <button class="small ghost icon {p.result_card ? 'carded' : ''}" onclick={() => markCard(f, p)}
+                            title={p.result_card ? 'A part of this page is a result card' : 'Mark this page, or a part of it, as a result card'}>{p.result_card ? '▣' : '▢'}</button>
+                          {/if}
                           {#if samePlaceAs(f, p)}
                             <span class="warn small" title="Both submaps have the same placement, so they lie on top of each other. Place this page again.">⚠ same placement as p{samePlaceAs(f, p).page_no}</span>
                           {/if}
@@ -358,6 +387,10 @@
                         </div>
                       {/each}
                       </div>
+                      {#if f.format === 'pdf'}
+                        <button class="small ghost split" onclick={() => (splitting = { open: true, file: f })}
+                          title="This PDF holds more than one map: cut it into one file per map">✂ Split into several maps…</button>
+                      {/if}
                     </details>
                   {/if}
                 </div>
@@ -366,6 +399,16 @@
           </div>
         {:else}
           <p class="muted small">No files on this version yet.</p>
+        {/if}
+        {#if versionCards(v).length}
+          <div class="cards row">
+            <span class="muted small">Result cards</span>
+            {#each versionCards(v) as { f, p } (p.id)}
+              <button class="card" onclick={() => markCard(f, p)} title="{f.original_name}{f.page_count > 1 ? ` · p${p.page_no}` : ''}">
+                {@render crop(p)}
+              </button>
+            {/each}
+          </div>
         {/if}
 
         <!-- Events -->
@@ -468,6 +511,10 @@
   </main>
 
   <Lightbox pages={lb.pages} bind:index={lb.index} bind:open={lb.open} title={lb.title} />
+  <ResultCardDialog page={rc.page} bind:open={rc.open} title={rc.title} onsaved={load} />
+  {#if splitting.file}
+    <SplitDialog file={splitting.file} bind:open={splitting.open} onsplit={() => { load(); notify('The other parts are in the inbox') }} />
+  {/if}
 {/if}
 
 <style>
@@ -529,6 +576,13 @@
   .fpage .inline { display: inline-flex; align-items: center; gap: .25rem; white-space: nowrap; }
   .sublabel { width: 8rem; padding: .15rem .35rem; font-size: .8rem; }
   .warn { color: var(--warn); white-space: nowrap; }
+  .carded { color: var(--accent); }
+  .split { margin-top: .35rem; }
+  .icon { padding: 0 .35rem; }
+  .cards { margin-top: .6rem; gap: .5rem; align-items: center; flex-wrap: wrap; }
+  .card { padding: 0; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; background: #fff; line-height: 0; }
+  .crop { position: relative; overflow: hidden; }
+  .crop img { position: absolute; max-width: none; }
 
   .event { border-left: 3px solid var(--course); padding: .4rem 0 .4rem .8rem; margin-bottom: .75rem; }
   .inner { background: var(--surface-2); border-radius: 6px; padding: .75rem; margin-bottom: .75rem; }

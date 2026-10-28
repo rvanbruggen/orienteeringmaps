@@ -334,9 +334,13 @@
         {#if ctx.file_pages.length > 1}
           <span class="pagenav">
             {#each ctx.file_pages as p}
+              {#if p.result_card && !p.result_card_box}
+                <span class="btn small ghost" aria-disabled="true" title="Page {p.page_no}: a result card, not part of the map">{p.page_no} ▣</span>
+              {:else}
               <a class="btn small {p.id === ctx.page.id ? 'primary' : 'ghost'}" href="#/place/{p.id}"
                 onclick={(e) => { if (dirty && !confirm('Leave without saving the placement?')) e.preventDefault() }}
                 title="Page {p.page_no}{p.submap ? ` (${p.submap_label || `Part ${p.page_no}`})` : ''}{p.georef ? ': placed' : ''}">{p.page_no}{p.georef ? ' ✓' : ''}</a>
+              {/if}
             {/each}
           </span>
         {/if}

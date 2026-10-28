@@ -76,11 +76,20 @@ class PageOut(_Out):
     georef: GeorefSummary | None = None
     submap: bool = False
     submap_label: str | None = None
+    result_card: bool = False
+    result_card_box: list[float] | None = None  # [x0, y0, x1, y1] image pixels; None = the whole page
+
+
+class FileSplit(_In):
+    parts: list[list[int]] = Field(min_length=2)  # 1-based page numbers; every page in exactly one part
 
 
 class PageUpdate(_In):
     submap: bool | None = None
     submap_label: str | None = Field(None, max_length=100)
+    result_card: bool | None = None
+    # The part of the page that is the result card; null with result_card = the whole page.
+    result_card_box: list[float] | None = Field(None, min_length=4, max_length=4)
 
 
 class FileOut(_Out):
