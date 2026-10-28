@@ -404,7 +404,7 @@
           <div class="cards row">
             <span class="muted small">Result cards</span>
             {#each versionCards(v) as { f, p } (p.id)}
-              <button class="card" onclick={() => markCard(f, p)} title="{f.original_name}{f.page_count > 1 ? ` · p${p.page_no}` : ''}">
+              <button class="rcard" onclick={() => markCard(f, p)} title="{f.original_name}{f.page_count > 1 ? ` · p${p.page_no}` : ''}">
                 {@render crop(p)}
               </button>
             {/each}
@@ -580,7 +580,7 @@
   .split { margin-top: .35rem; }
   .icon { padding: 0 .35rem; }
   .cards { margin-top: .6rem; gap: .5rem; align-items: center; flex-wrap: wrap; }
-  .card { padding: 0; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; background: #fff; line-height: 0; }
+  .rcard { padding: 0; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; background: #fff; line-height: 0; }
   .crop { position: relative; overflow: hidden; }
   .crop img { position: absolute; max-width: none; }
 
