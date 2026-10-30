@@ -41,7 +41,7 @@ def test_upload_create_map_and_history(client):
     summary = next(x for x in client.get("/api/maps").json() if x["id"] == mp["id"])
     assert summary["scale"] == 4000 and summary["last_survey"] == "2024-03"
     assert summary["last_event"] == "2024-10-01" and summary["version_count"] == 2
-    assert summary["club_name"] == "OMEGA"
+    assert summary["club_name"] == "OMEGA" and summary["latest_version_id"] == v2["id"]
 
     # Invalid partial date is rejected
     assert client.patch(f"/api/versions/{v1['id']}", json={"survey_date": "May 2021"}).status_code == 422

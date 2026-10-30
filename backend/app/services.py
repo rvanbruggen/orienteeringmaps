@@ -166,6 +166,7 @@ def map_summary(mp: m.Map) -> dict:
         id=mp.id, name=mp.name, location=mp.location, lat=mp.lat, lon=mp.lon,
         map_type=mp.map_type, club_id=mp.club_id, club_name=mp.club.name if mp.club else None,
         tags=mp.tags or [], needs_review=bool(mp.needs_review), publish_level=mp.publish_level or "private",
+        latest_version_id=latest.id if latest else None,
         scale=latest.scale if latest else None,
         contour_interval=latest.contour_interval if latest else None,
         last_survey=max(surveys) if surveys else None,

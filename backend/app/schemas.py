@@ -327,6 +327,7 @@ class MapSummary(BaseModel):
     tags: list[str]
     needs_review: bool
     publish_level: str = "private"
+    latest_version_id: int | None = None  # the version scale, contours and survey date come from
     scale: int | None
     contour_interval: float | None
     last_survey: str | None

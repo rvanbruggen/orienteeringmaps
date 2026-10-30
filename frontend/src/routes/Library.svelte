@@ -4,7 +4,7 @@
   import { go } from '../lib/router.svelte.js'
   import { SvelteSet } from 'svelte/reactivity'
   import { clubs as clubStore, meta, notify, refreshClubs } from '../lib/stores.svelte.js'
-  import { fmtScale, fmtContour, fmtDate, label, yearsAgo, PUBLISH_LEVELS } from '../lib/format.js'
+  import { fmtScale, fmtContour, fmtDate, label, yearsAgo, isPartialDate, parseScale, PUBLISH_LEVELS } from '../lib/format.js'
   import ExplorerMap from '../components/ExplorerMap.svelte'
 
   const PREFS_KEY = 'omaps.library'
@@ -12,7 +12,7 @@
   let races = $state([]) // O'Punch races with coordinates, for the Map view
   let loading = $state(true)
 
-  const defaults = { q: '', type: '', club: '', tag: '', pub: '', review: false, sort: 'name', dir: 1, view: 'table' }
+  const defaults = { q: '', type: '', club: '', tag: '', pub: '', placed: '', review: false, sort: 'name', dir: 1, view: 'table' }
   let prefs = $state({ ...defaults, ...load() })
 
   function load() {
@@ -128,6 +128,7 @@
       (!prefs.club || m.club_name === prefs.club) &&
       (!prefs.tag || m.tags.includes(prefs.tag)) &&
       (!prefs.pub || (prefs.pub === 'public' ? m.publish_level !== 'private' : m.publish_level === prefs.pub)) &&
+      (!prefs.placed || (prefs.placed === 'placed') === m.placed_count > 0) &&
       (!prefs.review || m.needs_review))
     const k = prefs.sort
     return out.sort((a, b) => {
@@ -145,8 +146,85 @@
     else { prefs.sort = key; prefs.dir = key.startsWith('last_') ? -1 : 1 }
   }
 
-  const anyFilter = $derived(prefs.q || prefs.type || prefs.club || prefs.tag || prefs.pub || prefs.review)
-  const clearFilters = () => Object.assign(prefs, { q: '', type: '', club: '', tag: '', pub: '', review: false })
+  const anyFilter = $derived(prefs.q || prefs.type || prefs.club || prefs.tag || prefs.pub || prefs.placed || prefs.review)
+  const clearFilters = () => Object.assign(prefs, { q: '', type: '', club: '', tag: '', pub: '', placed: '', review: false })
+
+  // ------------------------------------------------------- inline editing --
+  // Location and club live on the map; scale, contours and survey date on its latest version.
+  const EDITABLE = {
+    location: { value: (m) => m.location ?? '' },
+    club_name: { value: (m) => m.club_id ?? '' },
+    scale: { value: (m) => (m.scale ? fmtScale(m.scale) : ''), version: true },
+    contour_interval: { value: (m) => m.contour_interval ?? '', version: true },
+    last_survey: { value: (m) => m.last_survey ?? '', version: true },
+  }
+  let editing = $state(null) // { id, key, value }
+  let saving = $state(false)
+
+  function startEdit(e, m, key) {
+    e.stopPropagation()
+    if (editing?.id === m.id && editing.key === key) return
+    if (EDITABLE[key].version && !m.latest_version_id) return notify('This map has no version to edit', 'error')
+    editing = { id: m.id, key, value: String(EDITABLE[key].value(m)) }
+  }
+  const cancelEdit = () => (editing = null)
+
+  function editKey(e) {
+    if (e.key === 'Enter') { e.preventDefault(); e.target.blur() }
+    else if (e.key === 'Escape') { e.preventDefault(); cancelEdit() }
+  }
+
+  async function commitEdit() {
+    if (!editing || saving) return
+    const { id, key, value } = editing
+    const m = maps.find((x) => x.id === id)
+    const v = String(value).trim()
+    if (!m || v === String(EDITABLE[key].value(m))) return cancelEdit()
+    let url, body
+    if (key === 'location') { url = `/api/maps/${id}`; body = { location: v || null } }
+    else if (key === 'club_name') { url = `/api/maps/${id}`; body = { club_id: v ? +v : null } }
+    else {
+      url = `/api/versions/${m.latest_version_id}`
+      if (key === 'scale') {
+        const n = parseScale(v)
+        if (v && !(n >= 100)) return notify('Type a scale like 1:10000', 'error')
+        body = { scale: n }
+      } else if (key === 'contour_interval') {
+        const n = v === '' ? null : +v.replace(',', '.').replace(/\s*m$/, '')
+        if (n !== null && !(n >= 0)) return notify('Type the contour interval in metres', 'error')
+        body = { contour_interval: n }
+      } else {
+        if (!isPartialDate(v)) return notify('Type a date like 2021, 2021-05 or 2021-05-14', 'error')
+        body = { survey_date: v || null }
+      }
+    }
+    saving = true
+    try {
+      await api.patch(url, body)
+      cancelEdit()
+      await reload()
+    } catch (err) { notify(err.message, 'error') }
+    saving = false
+  }
+
+  async function editClub(e) {
+    if (e.target.value !== '__new') return commitEdit()
+    const id = editing.id
+    const name = prompt('Name of the new club')?.trim() // the dialog blurs the select, which ends the edit
+    if (!name) return cancelEdit()
+    try {
+      const club = await api.post('/api/clubs', { name })
+      await refreshClubs()
+      editing = { id, key: 'club_name', value: String(club.id) }
+      await commitEdit()
+    } catch (err) { notify(err.message, 'error') }
+  }
+
+  // Focus (and select) the input as soon as a cell switches to edit mode.
+  function autofocus(node) {
+    node.focus()
+    node.select?.()
+  }
 
   function exportCsv() {
     const cols = ['name', 'location', 'map_type', 'club_name', 'scale', 'contour_interval', 'last_survey', 'last_event', 'version_count', 'event_count', 'course_count', 'tags', 'lat', 'lon']
@@ -164,6 +242,28 @@
 
   const staleSurvey = (d) => (yearsAgo(d) ?? 0) > 10
 </script>
+
+{#snippet cell(m, key, shown, num = false, stale = false)}
+  {@const on = editing?.id === m.id && editing.key === key}
+  <td class="edit" class:num class:stale class:on onclick={(e) => startEdit(e, m, key)}
+      title={on ? '' : stale ? 'Surveyed more than 10 years ago · click to edit' : EDITABLE[key].version && m.version_count > 1 ? 'Click to edit (changes the latest version)' : 'Click to edit'}>
+    {#if !on}
+      {shown}
+    {:else if key === 'club_name'}
+      <select bind:value={editing.value} onchange={editClub} onblur={cancelEdit} onkeydown={editKey} disabled={saving} use:autofocus aria-label="Club of {m.name}">
+        <option value="">— No club</option>
+        {#each clubStore.list as c (c.id)}<option value={String(c.id)}>{c.name}</option>{/each}
+        <option value="__new">+ New club…</option>
+      </select>
+    {:else}
+      <input bind:value={editing.value} onblur={commitEdit} onkeydown={editKey} disabled={saving} use:autofocus
+             class:invalid={key === 'last_survey' && !isPartialDate(editing.value.trim())}
+             inputmode={key === 'contour_interval' ? 'decimal' : undefined}
+             placeholder={{ location: 'Location', scale: '1:10000', contour_interval: 'metres', last_survey: '2021-05' }[key]}
+             aria-label="{columns.find((c) => c.key === key).label} of {m.name}" />
+    {/if}
+  </td>
+{/snippet}
 
 <main class="page">
   <div class="head row">
@@ -196,6 +296,11 @@
       <option value="">Public & private</option>
       <option value="public">On the public site</option>
       {#each PUBLISH_LEVELS as l}<option value={l.value}>{l.label}{l.value === 'private' ? ' only' : ''}</option>{/each}
+    </select>
+    <select bind:value={prefs.placed} aria-label="Placed on the map">
+      <option value="">Placed or not</option>
+      <option value="placed">Placed</option>
+      <option value="unplaced">Not yet placed</option>
     </select>
     <label class="check"><input type="checkbox" bind:checked={prefs.review} /> Needs review</label>
     {#if anyFilter}<button class="ghost small" onclick={clearFilters}>Clear</button>{/if}
@@ -286,11 +391,11 @@
                   {#each m.tags as t}<span class="chip accent">{t}</span>{/each}
                 </div>
               </td>
-              <td>{m.location ?? ''}</td>
-              <td>{m.club_name ?? ''}</td>
-              <td class="num">{fmtScale(m.scale)}</td>
-              <td class="num">{fmtContour(m.contour_interval)}</td>
-              <td class="num" class:stale={staleSurvey(m.last_survey)} title={staleSurvey(m.last_survey) ? 'Surveyed more than 10 years ago' : ''}>{fmtDate(m.last_survey)}</td>
+              {@render cell(m, 'location', m.location ?? '')}
+              {@render cell(m, 'club_name', m.club_name ?? '')}
+              {@render cell(m, 'scale', fmtScale(m.scale), true)}
+              {@render cell(m, 'contour_interval', fmtContour(m.contour_interval), true)}
+              {@render cell(m, 'last_survey', fmtDate(m.last_survey), true, staleSurvey(m.last_survey))}
               <td class="num">{fmtDate(m.last_event)}</td>
               <td class="num">{m.version_count}</td>
               <td class="num">{m.event_count}{m.course_count ? ` · ${m.course_count} crs` : ''}</td>
@@ -355,6 +460,11 @@
   .name { font-weight: 600; color: var(--text); }
   .chips { display: flex; gap: .25rem; flex-wrap: wrap; margin-top: .2rem; }
   td.stale { color: var(--warn); }
+  td.edit { cursor: text; }
+  td.edit:not(.on):hover { box-shadow: inset 0 0 0 1px var(--border); background: var(--surface); }
+  td.edit.on { padding: .2rem .3rem; }
+  td.edit input, td.edit select { width: 100%; min-width: 6rem; padding: .25rem .4rem; font: inherit; }
+  td.edit.num input { text-align: right; }
 
   .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; }
   .mapcard { padding: 0; overflow: hidden; color: var(--text); display: flex; flex-direction: column; }
