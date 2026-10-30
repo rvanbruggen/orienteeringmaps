@@ -342,6 +342,7 @@ class MapSummary(BaseModel):
     # Every placed page shown on the overview: the main one, or all placed submaps of the picture file.
     parts: list[dict] = []  # [{page_id, label, footprint, overlay}]
     thumb_url: str | None
+    preview: dict | None = None  # full-size picture of the thumbnail's page: {url, width, height}
     cover_file_id: int | None = None  # the file shown as the map's picture
     updated_at: datetime
 

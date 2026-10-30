@@ -161,7 +161,7 @@ def map_summary(mp: m.Map) -> dict:
     surveys = [v.survey_date for v in mp.versions if v.survey_date]
     event_dates = [e.date for e in events if e.date]
     cover = cover_file(mp)
-    thumb = derived_url(map_pages(cover)[0].thumb_name) if cover else None
+    page = map_pages(cover)[0] if cover else None
     return dict(
         id=mp.id, name=mp.name, location=mp.location, lat=mp.lat, lon=mp.lon,
         map_type=mp.map_type, club_id=mp.club_id, club_name=mp.club.name if mp.club else None,
@@ -174,7 +174,9 @@ def map_summary(mp: m.Map) -> dict:
         version_count=len(mp.versions), event_count=len(events),
         course_count=sum(len(e.courses) for e in events), file_count=len(files),
         placed_count=sum(1 for f in files for p in f.pages if p.georef is not None),
-        thumb_url=thumb, cover_file_id=cover.id if cover else None, updated_at=mp.updated_at,
+        thumb_url=derived_url(page.thumb_name) if page else None,
+        preview={"url": derived_url(page.image_name), "width": page.width, "height": page.height} if page else None,
+        cover_file_id=cover.id if cover else None, updated_at=mp.updated_at,
         **_placement(mp),
     )
 

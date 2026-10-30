@@ -220,6 +220,41 @@
     } catch (err) { notify(err.message, 'error') }
   }
 
+  // ------------------------------------------------------ hover preview --
+  // Hovering a thumbnail shows the map large beside it; hovering the preview magnifies under the cursor,
+  // so the legend (club, scale, contours, survey) can be read without opening the map.
+  let peek = $state(null) // { m, left, top, width, height }
+  let lens = $state(null) // cursor position over the preview, as fractions
+  let zoom = $state(3)
+  let peekTimer
+
+  function peekOn(node, m) {
+    clearTimeout(peekTimer)
+    if (!m.preview) return
+    peekTimer = setTimeout(() => {
+      const r = node.getBoundingClientRect()
+      const left = r.right + 12
+      const ratio = m.preview.width / m.preview.height
+      const width = Math.max(200, Math.min(innerWidth - left - 16, (innerHeight - 32) * ratio, 1100))
+      const height = width / ratio
+      const top = Math.min(Math.max(16, r.top + r.height / 2 - height / 2), innerHeight - height - 16)
+      if (peek?.m.id !== m.id) { lens = null; zoom = 3 }
+      peek = { m, left, top, width, height }
+    }, peek ? 0 : 250)
+  }
+  function peekOff() {
+    clearTimeout(peekTimer)
+    peekTimer = setTimeout(() => (peek = lens = null), 150)
+  }
+  function peekMove(e) {
+    const r = e.currentTarget.getBoundingClientRect()
+    lens = { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height }
+  }
+  function peekWheel(e) {
+    e.preventDefault()
+    zoom = Math.min(8, Math.max(1.5, zoom * (e.deltaY < 0 ? 1.2 : 1 / 1.2)))
+  }
+
   // Focus (and select) the input as soon as a cell switches to edit mode.
   function autofocus(node) {
     node.focus()
@@ -264,6 +299,8 @@
     {/if}
   </td>
 {/snippet}
+
+<svelte:window onscroll={() => (peek = lens = null)} onkeydown={(e) => e.key === 'Escape' && (peek = lens = null)} />
 
 <main class="page">
   <div class="head row">
@@ -378,7 +415,7 @@
               <td class="checkcol" onclick={(e) => toggle(e, m, i)}>
                 <input type="checkbox" checked={selected.has(m.id)} aria-label="Select {m.name}" onclick={(e) => toggle(e, m, i)} />
               </td>
-              <td class="thumbcol">
+              <td class="thumbcol" onmouseenter={(e) => peekOn(e.currentTarget, m)} onmouseleave={peekOff}>
                 {#if m.thumb_url}<img src={m.thumb_url} alt="" loading="lazy" />{:else}<div class="nothumb"></div>{/if}
               </td>
               <td>
@@ -404,6 +441,20 @@
         </tbody>
       </table>
     </div>
+    {#if peek}
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="peek card" style:left="{peek.left}px" style:top="{peek.top}px" style:width="{peek.width}px" style:height="{peek.height}px"
+           onmouseenter={() => clearTimeout(peekTimer)} onmouseleave={peekOff}
+           onmousemove={peekMove} onwheel={peekWheel}>
+        <div class="zoomer" style:transform={lens ? `scale(${zoom})` : ''} style:transform-origin={lens ? `${lens.x * 100}% ${lens.y * 100}%` : ''}>
+          {#key peek.m.id}
+            <img src={peek.m.thumb_url} alt="" />
+            <img src={peek.m.preview.url} alt="Map of {peek.m.name}" onload={(e) => e.currentTarget.classList.add('loaded')} />
+          {/key}
+        </div>
+        <div class="peekbar"><strong>{peek.m.name}</strong> <span>{lens ? `${zoom.toFixed(1)}× · scroll to zoom` : 'move over the map to magnify'}</span></div>
+      </div>
+    {/if}
   {:else}
     <div class="cards">
       {#each filtered as m (m.id)}
@@ -458,6 +509,13 @@
   .addtag input { width: 9rem; }
   .thumbcol img, .nothumb { width: 48px; height: 48px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border); background: var(--surface-2); }
   .name { font-weight: 600; color: var(--text); }
+  .peek { position: fixed; z-index: 50; padding: 0; overflow: hidden; background: var(--surface-2); box-shadow: 0 8px 30px rgb(0 0 0 / .3); cursor: zoom-in; }
+  .zoomer { position: absolute; inset: 0; }
+  .zoomer img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+  .zoomer img + img { opacity: 0; transition: opacity .15s; }
+  .zoomer img + img:global(.loaded) { opacity: 1; }
+  .peekbar { position: absolute; left: 0; right: 0; bottom: 0; display: flex; gap: .5rem; align-items: baseline; padding: .3rem .6rem; font-size: .8rem; background: color-mix(in srgb, var(--surface) 88%, transparent); pointer-events: none; }
+  .peekbar span { color: var(--muted); margin-left: auto; }
   .chips { display: flex; gap: .25rem; flex-wrap: wrap; margin-top: .2rem; }
   td.stale { color: var(--warn); }
   td.edit { cursor: text; }
